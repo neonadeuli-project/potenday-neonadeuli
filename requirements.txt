@@ -1,0 +1,13 @@
+fastapi
+uvicorn
+sqlalchemy==1.4.39
+pymysql==1.1.0
+pydantic
+passlib
+bcrypt
+aiomysql
+greenlet
+python-dotenv
+alembic
+pytest
+cryptography
