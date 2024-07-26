@@ -1,0 +1,40 @@
+from typing import Optional
+from pydantic import BaseModel
+from datetime import datetime
+
+# 새로운 채팅 세션 생성 요청 값
+class ChatSessionRequest(BaseModel):
+    user_id: int
+    heritage_id: int
+
+# 새로운 채팅 세션 생성 응답 값
+class ChatSessionResponse(BaseModel):
+    id: int
+    user_id: int
+    heritage_id: int
+    start_time: datetime
+    created_at: datetime
+
+# 채팅 메시지 생성 요청 값
+class ChatMessageRequest(BaseModel):
+    content: str
+
+# 채팅 메시지 응답 값
+class ChatMessageResponse(BaseModel):
+    id: int
+    chat_session_id: int
+    sender: str
+    content: str
+    timestamp: datetime
+    created_at: datetime
+    updated_at: datetime
+    
+# 채팅 세션 종료 응답 값
+class ChatSessionEndResponse(BaseModel):
+    id: int
+    user_id: int
+    heritage_id: int
+    start_time: datetime
+    end_time: Optional[datetime] = None 
+    created_at: datetime
+    updated_at: datetime
