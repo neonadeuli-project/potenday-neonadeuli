@@ -9,6 +9,7 @@ class UserService:
     def __init__(self, db: AsyncSession):
         self.user_repository = UserRepository(db)
 
+    # 임시 유저 생성
     async def create_temporary_user(self) -> str:
         nickname = await get_unique_nickname(self.user_repository.db)
         user = await self.user_repository.create_user(name=nickname)
