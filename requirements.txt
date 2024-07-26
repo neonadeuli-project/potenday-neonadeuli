@@ -11,3 +11,5 @@ python-dotenv
 alembic
 pytest
 cryptography
+mysqlclient
+alembic

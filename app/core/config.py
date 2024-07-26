@@ -47,7 +47,7 @@ class Settings(BaseSettings):
     MYSQL_DB : str
 
     # 슬라이딩 윈도우 메시지 제한 설정
-    SLIDING_WINDOW_SIZE : int
+    MAX_SLIDING_WINDOW_SIZE : int
 
     #퀴즈 제한 설정
     QUIZ_COUNT : int

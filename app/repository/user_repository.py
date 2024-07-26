@@ -1,7 +1,8 @@
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
+from datetime import datetime
 
 from app.models.user import User
-from sqlalchemy.future import select
 
 class UserRepository:
     def __init__(self, db: AsyncSession):
@@ -9,7 +10,11 @@ class UserRepository:
 
     # 임시 로그인 유저 저장
     async def create_user(self, name: str) -> User:
-        user = User(name=name)
+        user = User(
+            name=name,
+            created_at=datetime.now(),
+            updated_at=datetime.now()
+        )
         self.db.add(user)
         await self.db.commit()
         await self.db.refresh(user)

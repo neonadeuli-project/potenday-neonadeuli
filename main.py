@@ -19,6 +19,9 @@ def custom_generate_unique_id(route: APIRoute) -> str:
 async def app_lifespan(app: FastAPI):
     # 애플리케이션 시작 시 실행될 로직
     async with engine.begin() as conn:
+        # 모든 테이블 삭제
+        # await conn.run_sync(Base.metadata.drop_all)
+        # 모든 테이블 다시 생성
         await conn.run_sync(Base.metadata.create_all)
     yield
     # 애플리케이션 종료 시 실행될 로직 (필요한 경우)
