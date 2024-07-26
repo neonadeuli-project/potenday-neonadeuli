@@ -46,6 +46,12 @@ class Settings(BaseSettings):
     MYSQL_PORT : int
     MYSQL_DB : str
 
+    # 슬라이딩 윈도우 메시지 제한 설정
+    SLIDING_WINDOW_SIZE : int
+
+    #퀴즈 제한 설정
+    QUIZ_COUNT : int
+
     @computed_field
     @property
     def SQLALCHEMY_DATABASE_URI(self) -> MySQLDsn:
