@@ -24,15 +24,15 @@ class ChatSession(Base):
     heritages = relationship("Heritage", back_populates="chat_sessions")
     chat_messages = relationship("ChatMessage", back_populates="chat_sessions")
 
-class SenderType(enum.Enum):
+class RoleType(enum.Enum):
     user = "user"
     bot = "bot"
 
 class ChatMessage(Base):
     __tablename__ = 'chat_messages'
     id = Column(Integer, primary_key=True, index=True)
-    chat_session_id = Column(Integer, ForeignKey('chat_sessions.id'))
-    sender = Column(Enum('user', 'bot', name='sender_enum'))
+    session_id = Column(Integer, ForeignKey('chat_sessions.id'))
+    role = Column(Enum('user', 'bot', name='role_enum'))
     content = Column(Text)
     timestamp = Column(DateTime, default=datetime.now)
     created_at = Column(DateTime, default=datetime.now)
