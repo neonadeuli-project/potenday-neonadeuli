@@ -2,12 +2,14 @@ import logging
 
 from fastapi import logger
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import update, values
 from sqlalchemy.future import select
+from sqlalchemy.exc import SQLAlchemyError
+from datetime import datetime
+
 from app.models.chat import ChatSession, ChatMessage
 from app.models.user import User
 from app.models.heritage import Heritage
-from datetime import datetime
-from sqlalchemy.exc import SQLAlchemyError
 
 logger = logging.getLogger(__name__)
 
@@ -61,18 +63,32 @@ class ChatRepository:
             logger.error(f"예상치 못한 오류: {str(e)}")
             raise
     
-    # 채팅 메시지 저장
-    async def create_chat_message(self, session_id: int, message_text: str, sender: str, message_order: int):
-        message = ChatMessage(
-            chat_session_id=session_id,
-            content=message_text,
-            sender=sender,
+    # 새로운 채팅 메시지 저장 (새 레코드 추가)
+    async def create_message(self, session_id: int, role: str, content: str) -> ChatMessage:
+        session = await self.db.execute(select(ChatSession).where(ChatSession.id == session_id))
+        session = session.scalar_one_or_none()
+        if not session:
+            raise ValueError("채팅 세션을 찾을 수 없습니다.")
+        
+        new_message = ChatMessage(
+            session_id=session_id,
+            role=role,
+            content=content,
             timestamp=datetime.now()
         )
-        self.db.add(message)
+        self.db.add(new_message)
         await self.db.flush()
+        await self.db.refresh(new_message)
+        return new_message
+    
+    # 기존 채팅 메시지 업데이트 (특정 레코드 수정)
+    async def update_message(self, session_id: int, **kwargs):
+        await self.db.execute(
+            update(ChatSession).
+            where(ChatSession.id == session_id).
+            values(**kwargs)
+        )
         await self.db.commit()
-        return message
     
     # 채팅 세션 종료
     async def update_session(self, session_id: int) -> ChatSession:

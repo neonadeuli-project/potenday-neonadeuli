@@ -22,12 +22,10 @@ class ChatMessageRequest(BaseModel):
 # 채팅 메시지 응답 값
 class ChatMessageResponse(BaseModel):
     id: int
-    chat_session_id: int
-    sender: str
+    session_id: int
+    role: str
     content: str
     timestamp: datetime
-    created_at: datetime
-    updated_at: datetime
     
 # 채팅 세션 종료 응답 값
 class ChatSessionEndResponse(BaseModel):

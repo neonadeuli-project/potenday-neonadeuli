@@ -7,7 +7,13 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from app.core.deps import get_db    
 from app.service.chat_service import ChatService
-from app.schemas.chat import ChatSessionResponse, ChatSessionRequest, ChatMessageResponse, ChatSessionEndResponse
+from app.schemas.chat import (
+    ChatSessionResponse, 
+    ChatSessionRequest, 
+    ChatMessageRequest,
+    ChatMessageResponse, 
+    ChatSessionEndResponse
+)
 
 # 로깅 설정
 logging.basicConfig(level=logging.INFO)
@@ -43,12 +49,27 @@ async def create_chat_session(chat_session: ChatSessionRequest, db: AsyncSession
         raise HTTPException(status_code=500, detail="서버 오류가 발생했습니다.")
 
 # 메시지 전송 및 챗봇 응답
-# TODO: AI 챗봇 호출 로직 추가
 @router.post("/sessions/{session_id}/messages", response_model=ChatMessageResponse)
-async def add_message(session_id: int, message: str, db: AsyncSession = Depends(get_db)):
+async def add_chat_message(session_id: int, message: ChatMessageRequest, db: AsyncSession = Depends(get_db)):
     chat_service = ChatService(db)
-    await chat_service.update_conversation(session_id, message)
-    return {"status" : "success"}
+    try:
+        user_message, bot_message = await chat_service.update_conversation(session_id, message.content)
+        return ChatMessageResponse (
+            id=bot_message.id,
+            session_id=bot_message.session_id,
+            role=bot_message.role,
+            content=bot_message.content,
+            timestamp=bot_message.timestamp
+        )
+    except ValueError as e:
+        logger.warning(f"ValueError in create_chat_session: {str(e)}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except SQLAlchemyError as e:
+        logger.error(f"SQLAlchemyError in create_chat_session: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail="데이터베이스 오류가 발생했습니다.")
+    except Exception as e:
+        logger.error(f"Unexpected error in create_chat_session: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail="서버 오류가 발생했습니다.")
 
 # 채팅 세션 종료
 @router.post("/sessions/{session_id}/end", response_model=ChatSessionEndResponse)
