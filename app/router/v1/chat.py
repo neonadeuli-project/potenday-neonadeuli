@@ -99,7 +99,7 @@ async def add_chat_message(session_id: int, message: ChatMessageRequest, db: Asy
         logger.error(f"메시지 전송 API 서버 에러: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail="서버 오류가 발생했습니다.")
 
-# 건축물 관련 챗봇 정보 제공
+# 건축물 관련 정보 제공
 @router.get("/{session_id}/heritage/buildings/{building_id}/info", response_model=HeritageBuildingInfoResponse)
 async def get_heritage_building_info(
     session_id: int,
@@ -130,7 +130,7 @@ async def get_heritage_building_info(
         logger.error(f"건축물 정보 제공 API 서버 에러: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail="서버 오류가 발생했습니다.")
 
-# 건축물 관련 퀴즈 정보 제공
+# 건축물 관련 퀴즈 제공
 @router.get("/{session_id}/heritage/buildings/{building_id}/quiz")
 async def get_heritage_building_quiz(
     session_id: int,

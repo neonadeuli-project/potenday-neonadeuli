@@ -13,3 +13,4 @@ pytest
 cryptography
 mysqlclient
 alembic
+aiohttp
