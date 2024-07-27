@@ -20,14 +20,14 @@ class ChatService:
         self.clova_service = ClovaService()
     
     # 채팅 세션 생성하기
-    # async def create_chat_session(self, user_id: int, heritage_id: int):
-    #     logger.info(f"ChatService에서 채팅 세션 생성을 시도합니다. (user_id: {user_id}, heritage_id: {heritage_id})")
-    #     async with self.db.begin():
-    #         try:
-    #             return await self.chat_repository.create_chat_session(user_id, heritage_id)
-    #         except Exception as e:
-    #             logger.error(f"create_chat_session 메소드 에러 발생: {str(e)}", exc_info=True)
-    #             raise
+    async def create_chat_session(self, user_id: int, heritage_id: int):
+        logger.info(f"ChatService에서 채팅 세션 생성을 시도합니다. (user_id: {user_id}, heritage_id: {heritage_id})")
+        async with self.db.begin():
+            try:
+                return await self.chat_repository.create_chat_session(user_id, heritage_id)
+            except Exception as e:
+                logger.error(f"create_chat_session 메소드 에러 발생: {str(e)}", exc_info=True)
+                raise
 
     # async def update_conversation(self, session_id: int, content: str):
     #     # 기존 대화 내용 가져오기
@@ -79,16 +79,19 @@ class ChatService:
         await self.update_conversation_content(session_id, "user", content, full_conversation, sliding_window)
         
         # Clova API 호출
-        bot_response = await self.get_clova_response(clova_method, session_id, sliding_window) 
+        clova_responses = await self.get_clova_response(clova_method, session_id, sliding_window)
+        bot_response = clova_responses["response"]
+        new_sliding_window = clova_responses["new_sliding_window"]
 
         # Clova 메시지 저장
         await self.update_conversation_content(session_id, "assistant", bot_response, full_conversation, sliding_window)
 
+
         # 슬라이딩 윈도우 크기 제한
-        sliding_window = self.limit_sliding_window(sliding_window)
+        # sliding_window = self.limit_sliding_window(sliding_window)
 
         # 업데이트 된 대화 내용 저장
-        await self.save_conversation(session_id, full_conversation, sliding_window)
+        await self.save_conversation(session_id, full_conversation, new_sliding_window)
 
         return bot_response
     
@@ -106,9 +109,9 @@ class ChatService:
         return response
     
     # 슬라이딩 윈도우 크기 제한
-    def limit_sliding_window(self, sliding_window: list) -> list:
-        max_window_size = settings.MAX_SLIDING_WINDOW_SIZE
-        return sliding_window[-max_window_size:] if len(sliding_window) > max_window_size else sliding_window
+    # def limit_sliding_window(self, sliding_window: list) -> list:
+    #     max_window_size = settings.MAX_SLIDING_WINDOW_SIZE
+    #     return sliding_window[-max_window_size:] if len(sliding_window) > max_window_size else sliding_window
     
     # 업데이트 된 대화 내용 저장
     async def save_conversation(self, session_id: int, full_conversation: list, sliding_window: list):
@@ -128,12 +131,13 @@ class ChatService:
                 logger.error(f"end_chat_session 메소드 에러 발생: {str(e)}", exc_info=True)
                 raise
 
-    # 채팅용 메서드
+    # 채팅 메시지 메서드
     async def update_chat_conversation(self, session_id: int, content: str):
         # 사용자 메시지 저장 및 Clova 응답 받기
         bot_response =  await self.update_conversation(session_id, content, self.clova_service.get_chatting)
 
-        # 가장 최근 챗봇 메시지 조회
+        # 가장 최근 챗봇 메시지 조회 
+        # 최근 메시지 뿐 아니라 연관된 다른 컬럼 데이터도 가져올 수 있기 때문에 bot_response와 구분
         bot_message = await self.chat_repository.get_latest_message(session_id, "assistant")
         
         if bot_message is None:
@@ -147,10 +151,10 @@ class ChatService:
             "timestamp": bot_message.timestamp.isoformat()
         }
 
-    # # 퀴즈용 메서드
+    # # 건축물 퀴즈 제공 메서드
     # async def update_quiz_conversation(self, session_id: int, content: str):
     #     return await self.update_conversation(session_id, content, self.clova_service.get_quiz)
 
-    # # 요약용 메서드
+    # # 채팅 요약 메서드
     # async def update_summary_conversation(self, session_id: int, content: str):
     #     return await self.update_conversation(session_id, content, self.clova_service.get_summary)
