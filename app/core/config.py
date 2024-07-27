@@ -46,6 +46,12 @@ class Settings(BaseSettings):
     MYSQL_PORT : int
     MYSQL_DB : str
 
+    # 클로바 스튜디오 API
+    CLOVA_API_KEY : str
+    CLOVA_API_KEY_PRIMARY_VAL : str
+    CLOVA_SLIDING_API_HOST : str
+    CLOVA_COMPLETION_API_HOST : str 
+
     # 슬라이딩 윈도우 메시지 제한 설정
     MAX_SLIDING_WINDOW_SIZE : int
 
