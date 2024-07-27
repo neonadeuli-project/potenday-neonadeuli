@@ -1,18 +1,27 @@
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import Session
 
-from app.core.deps import get_db    
+from app.core.deps import get_db
+from app.service.chat_service import ClovaService
+from app.service.heritage_service import HeritageService
+from app.repository.heritage_repository import HeritageRepository
+from app.repository.chat_repository import ChatRepository
 from app.service.chat_service import ChatService
+from app.schemas.heritage import (
+    HeritageBuildingInfoResponse
+)    
 from app.schemas.chat import (
     ChatSessionResponse, 
     ChatSessionRequest, 
     ChatMessageRequest,
     ChatMessageResponse, 
-    ChatSessionEndResponse
+    ChatSessionEndResponse,
+    ChatInfoResponse
 )
 
 # 로깅 설정
@@ -40,7 +49,7 @@ async def create_chat_session(chat_session: ChatSessionRequest, db: AsyncSession
         )
     except ValueError as e:
         logger.warning(f"ValueError in create_chat_session: {str(e)}")
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e))
     except SQLAlchemyError as e:
         logger.error(f"SQLAlchemyError in create_chat_session: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail="데이터베이스 오류가 발생했습니다.")
@@ -70,6 +79,32 @@ async def add_chat_message(session_id: int, message: ChatMessageRequest, db: Asy
     except Exception as e:
         logger.error(f"Unexpected error in create_chat_session: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail="서버 오류가 발생했습니다.")
+
+# 해당 건축물 관련 챗봇 정보 제공
+@router.get("/{session_id}/heritage/buildings/{building_id}/info", response_model=HeritageBuildingInfoResponse)
+async def get_heritage_building_info(
+    session_id: int,
+    building_id: int,
+    content: str = Query(None, description="문화재에 대한 챗봇의 정보 조회"),
+    db: Session = Depends(get_db)
+):
+    chat_service = ChatService(db)
+    clova_service = ClovaService()
+    heritage_repository = HeritageRepository(db)
+    chat_repository = ChatRepository(db)
+    service = HeritageService(chat_service, heritage_repository, chat_repository, clova_service)
+
+    try:
+        image_url, bot_response = await service.get_heritage_building_info(session_id, building_id, content)
+        return HeritageBuildingInfoResponse(
+            image_url=image_url or "",
+            # bot_response=ChatInfoResponse(content=bot_response) if bot_response else None
+            bot_response=bot_response or ""
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 # 채팅 세션 종료
 @router.post("/sessions/{session_id}/end", response_model=ChatSessionEndResponse)

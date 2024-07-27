@@ -7,9 +7,10 @@ from sqlalchemy.future import select
 from sqlalchemy.exc import SQLAlchemyError
 from datetime import datetime
 
-from app.models.chat import ChatSession, ChatMessage
+from app.models.chat.chat_session import ChatSession
+from app.models.chat.chat_message import ChatMessage
 from app.models.user import User
-from app.models.heritage import Heritage
+from app.models.heritage.heritage import Heritage
 
 logger = logging.getLogger(__name__)
 
@@ -65,10 +66,12 @@ class ChatRepository:
     
     # 새로운 채팅 메시지 저장 (새 레코드 추가)
     async def create_message(self, session_id: int, role: str, content: str) -> ChatMessage:
-        session = await self.db.execute(select(ChatSession).where(ChatSession.id == session_id))
-        session = session.scalar_one_or_none()
-        if not session:
-            raise ValueError("채팅 세션을 찾을 수 없습니다.")
+        # 세션 유효성 검사
+        # session = await self.db.execute(select(ChatSession)
+        #                                 .where(ChatSession.id == session_id))
+        # session = session.scalar_one_or_none()
+        # if not session:
+        #     raise ValueError("채팅 세션을 찾을 수 없습니다.")
         
         new_message = ChatMessage(
             session_id=session_id,
@@ -116,6 +119,7 @@ class ChatRepository:
 
     # 특정 채팅 세션 조회
     async def get_chat_session(self, session_id: int) -> ChatSession:
-        result = await self.db.execute(select(ChatSession).where(ChatSession.id == session_id))
+        result = await self.db.execute(select(ChatSession)
+                                       .where(ChatSession.id == session_id))
         return result.scalar_one_or_none()
     
