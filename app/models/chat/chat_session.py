@@ -1,8 +1,12 @@
-import enum
-from sqlalchemy import Column, Integer, ForeignKey, DateTime, Enum, Text
+from sqlalchemy import (
+    Column, 
+    Integer, 
+    ForeignKey, 
+    DateTime, 
+    Text
+)
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
-from datetime import datetime
 
 from app.core.config import settings
 from app.core.database import Base
@@ -23,19 +27,3 @@ class ChatSession(Base):
     users = relationship("User", back_populates="chat_sessions")
     heritages = relationship("Heritage", back_populates="chat_sessions")
     chat_messages = relationship("ChatMessage", back_populates="chat_sessions")
-
-class RoleType(enum.Enum):
-    user = "user"
-    bot = "bot"
-
-class ChatMessage(Base):
-    __tablename__ = 'chat_messages'
-    id = Column(Integer, primary_key=True, index=True)
-    session_id = Column(Integer, ForeignKey('chat_sessions.id'))
-    role = Column(Enum('user', 'bot', name='role_enum'))
-    content = Column(Text)
-    timestamp = Column(DateTime, default=datetime.now)
-    created_at = Column(DateTime, default=datetime.now)
-    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
-
-    chat_sessions = relationship("ChatSession", back_populates="chat_messages")

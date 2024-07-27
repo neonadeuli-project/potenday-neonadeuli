@@ -15,3 +15,4 @@ class User(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
     chat_sessions = relationship("ChatSession", back_populates="users")
+    bookmarks = relationship("UserBookmark", back_populates="users")
