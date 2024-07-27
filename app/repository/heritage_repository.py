@@ -22,6 +22,18 @@ class HeritageRepository:
     
     def __init__ (self, db: AsyncSession):
         self.db = db
+
+    async def get_heritage_building_with_image(self, building_id: int):
+        result = await self.db.execute(
+            select(HeritageBuilding, HeritageBuildingImage)
+            .outerjoin(HeritageBuildingImage)
+            .where(HeritageBuilding.id == building_id)
+            .options(
+                joinedload(HeritageBuilding.building_types),
+                joinedload(HeritageBuilding.heritages)
+            )
+        )
+        return result.unique().all()
     
     # 문화재 건축물 ID 조회
     async def get_heritage_building_by_id(self, building_id: int) -> Optional[HeritageBuilding]:

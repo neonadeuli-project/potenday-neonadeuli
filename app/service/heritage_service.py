@@ -1,5 +1,7 @@
 import logging
+import asyncio
 from typing import Optional
+from functools import lru_cache
 
 from app.core.deps import get_db    
 from app.service.chat_service import ClovaService, ChatService
@@ -20,35 +22,53 @@ class HeritageService:
 
     # 문화재 건축물 정보 제공
     async def get_heritage_building_info(self, session_id: int, building_id: int, content: str = None):
-        # 채팅 세션 유효성 검사
-        chat_session = await self.chat_repository.get_chat_session(session_id)
-        if not chat_session:
-            raise ValueError(f"세션 ID가 \"{session_id}\" 인 채팅 세션을 찾을 수 없습니다.")
+        # 세션 및 유효성 검사
+        await self.validate_session_and_building(session_id, building_id) 
 
-        # 문화재 건축물 유효성 검사
-        building = await self.heritage_repository.get_heritage_building_by_id(building_id)
-        if not building:
-            raise  ValueError(f"건축물 ID가 \"{building_id}\" 인 건축물을 찾을 수 없습니다.")
-        
-        if building.heritage_id != chat_session.heritage_id:
-            raise ValueError("요청된 건축물과 채팅 방이 연관되어 있지 않습니다.")
-        
-        # images = await self.heritage_repository.get_heritage_building_images(building.id)
-        # building_info = self.create_building_info(building, images)
-        # image_url = building_info['images'][0]['url'] if building_info['images'] else None
+        # 해당 건축물의 이미지 조회 
+        # image_url = await self.get_building_image_url(building_id)
+        image_url_task = asyncio.create_task(self.get_building_image_url(building_id))
+        bot_response_task = asyncio.create_task(self.chat_service.update_conversation(session_id, content, self.clova_service.get_chatting))
+        # Clova 챗봇 응답 조회
+        # bot_response = None
+        # if content:
+        #     bot_response = await self.chat_service.update_conversation(session_id, content, self.clova_service.get_chatting)
 
-        image_url = await self.get_building_image_url(building_id)
+        image_url = await image_url_task
+        bot_response = await bot_response_task if bot_response_task else None
 
-        bot_response = None
-        if content:
-            _ , bot_response = await self.chat_service.update_conversation(session_id, content)
-            bot_response = bot_response.content if bot_response else None
         return image_url, bot_response
     
+    @lru_cache(maxsize=100)
     async def get_building_image_url(self, building_id: int) -> Optional[str]:
         images = await self.heritage_repository.get_heritage_building_images(building_id)
         return images[0].image_url if images else None
     
+    # 문화재 건축물 퀴즈 제공
+    async def get_heritage_building_quiz(self, session_id: int, building_id: int, content: str):
+        # 세션 및 유효성 검사
+        building = await self.validate_session_and_building(session_id, building_id) 
+        
+        # Clova 챗봇 퀴즈 생성 및 대화 업데이트
+        quiz_response = await self.chat_service.update_quiz_conversation(session_id, content)
+
+        return quiz_response
+
+    # 세션 및 유효성 검사 메서드
+    async def validate_session_and_building(self, session_id: int, building_id: int):
+        chat_session = await self.chat_service.chat_repository.get_chat_session(session_id)
+        if not chat_session:
+            raise ValueError(f"세션 ID {session_id}인 채팅 세션을 찾을 수 없습니다.")
+
+        building = await self.heritage_repository.get_heritage_building_by_id(building_id)
+        if not building:
+            raise ValueError(f"건축물 ID {building_id}인 건축물을 찾을 수 없습니다.")
+
+        if building.heritage_id != chat_session.heritage_id:
+            raise ValueError("요청된 건축물과 채팅 방이 연관되어 있지 않습니다.")
+
+        return building
+
     # 참고 엔티티
     # def create_building_info(self, building: HeritageBuilding, images: list[HeritageBuildingImage]):
     #     building_type : HeritageType = building.building_types
