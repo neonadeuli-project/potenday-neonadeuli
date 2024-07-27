@@ -1,11 +1,15 @@
+import asyncio
+from functools import lru_cache
 import logging
-import random
+import aiohttp
 from typing import Dict, List
 from app.core.config import settings
 import json
 import http.client
 from http import HTTPStatus
 import requests
+
+from app.core.config import settings
 
 
 SYSTEM_PROMPT_CHATBOT = '''대한민국 문화재를설명하는 문화해설사입니다. 경복궁과 관련한 문화재에 대한 설명을 출력합니다.
@@ -136,37 +140,75 @@ class ClovaService:
         self.api_key_primary_val = settings.CLOVA_API_KEY_PRIMARY_VAL
         self.api_sliding_url = settings.CLOVA_SLIDING_API_HOST
         self.api_completion_url = settings.CLOVA_COMPLETION_API_HOST
+        self.session = None
 
-    async def get_clova(self, session_id: int, message: str) -> str:
-        # 임시 테스트 챗봇 응답 데이터 추출 
-        return random.choice(self.response)
+    # 이 메서드로 HTTP 세션을 재사용하여 연결 오버헤드 최소화
+    async def get_session(self):
+        if self.session is None or self.session.close():
+            self.session = aiohttp.ClientSession()
+        return self.session
+    
+    # TODO : 추후 Redis를 통한 API 응답을 캐싱하기
+    # @lru_cache(maxsize=100)
+    # async def get_cached_response(self, cache_key):
+    #     # 이 메서드는 캐시된 응답을 반환합니다.
+    #     # 실제 구현에서는 Redis나 다른 캐싱 시스템을 사용할 수 있습니다.
+    #     pass
+
+    # async def set_cached_response(self, cache_key, response):
+    #     # 이 메서드는 응답을 캐시에 저장합니다.
+    #     pass
 
     async def get_chatting(self, session_id: int, sliding_window: list) -> str:
         try:
             logger.info(f"get_chatting input - session_id: {session_id}, sliding_window: {sliding_window}")
 
-            sliding_window_executor = SlidingWindowExecutor(
-                host = self.api_sliding_url,
-                api_key = self.api_key,
-                api_key_primary_val= self.api_key_primary_val,
-                request_id = str(session_id)
-            )
+            # 캐시 키 생성
+            # cache_key = f"clova_response:{session_id}:{hash(json.dumps(sliding_window))}"
 
-            request_data = {
-                "messages": [{"role": "system", "content": SYSTEM_PROMPT_CHATBOT}] + sliding_window,
-                "maxTokens": 3000
-            }
+            # 캐시된 응답 확인
+            # cached_response = await self.get_cached_response(cache_key)
+            # if cached_response:
+            #     logger.info("Returning cached response")
+            #     return cached_response
+            
+            session = await self.get_session()
+
+            # 동시에 Sliding Window와 Completion 요청 준비
+            sliding_window_task = self.prepare_sliding_window(session, session_id, sliding_window)
+            completion_task = self.prepare_completion(session, session_id)
+
+            # Sliding Window 요청
+            # sliding_window_executor = SlidingWindowExecutor(
+            #     host = self.api_sliding_url,
+            #     api_key = self.api_key,
+            #     api_key_primary_val= self.api_key_primary_val,
+            #     request_id = str(session_id)
+            # )
+
+            # request_data = {
+            #     "messages": [{"role": "system", "content": SYSTEM_PROMPT_CHATBOT}] + sliding_window,
+            #     "maxTokens": 3000
+            # }
             # logger.info(f"Adjusted sliding window: {adjusted_sliding_window}")
 
-            completion_executor = ChatCompletionExecutor(
-                host = self.api_completion_url,
-                api_key = self.api_key,
-                api_key_primary_val = self.api_key_primary_val,
-                request_id = str(session_id)
-            )
+            # async with session.post(self.api_sliding_url, json=request_data, headers=sliding_window_headers) as resp:
+            #     if resp.status != 200:
+            #         raise ValueError(f"Sliding Window API error: {resp.status}")
+            #     adjusted_sliding_window = await resp.json()
 
-            adjusted_sliding_window = sliding_window_executor.execute(request_data)
+            # completion_executor = ChatCompletionExecutor(
+            #     host = self.api_completion_url,
+            #     api_key = self.api_key,
+            #     api_key_primary_val = self.api_key_primary_val,
+            #     request_id = str(session_id)
+            # )
 
+            # 두 작업 동시에 실행하기
+            # adjusted_sliding_window = sliding_window_executor.execute(request_data)
+            adjusted_sliding_window, completion_executor = await asyncio.gather(sliding_window_task, completion_task)
+
+            # Completion 요청 실행
             completion_request_data = {
                 "messages": adjusted_sliding_window,
                 "maxTokens": 400,
@@ -179,22 +221,61 @@ class ClovaService:
                 "seed": 0
             }
 
-            logger.info(f"Completion request data: {completion_request_data}")
+            logger.info(f"요청 데이터 완료: {completion_request_data}")
             response = completion_executor.execute(completion_request_data, stream=False)
 
             # 응답 로깅
-            logger.info(f"Raw API response: {response}")
+            logger.info(f"세션 ID {session_id}에 대한 Raw한 API 응답 {response}")
 
-            response = completion_executor.execute(completion_request_data, stream=False)
             response_text = parse_non_stream_response(response)
-            new_sliding_window = adjusted_sliding_window + [{"role":"assistant", "content":response_text}] # 새로운 sliding window에 방금 얻은 response를 더해서 반환
-            logger.info(f"Parsed response text: {response_text}")
-            # new_sliding_window를 그대로 DB에 업데이트 해야합니다.
-            return {"response": response_text, "new_sliding_window":new_sliding_window}
+            logger.info(f"세션 ID {session_id}에 대한 Parsed 된 응답 {response_text}")
+
+            # 새로운 sliding window에 방금 얻은 response를 더해서 반환
+            new_sliding_window = adjusted_sliding_window + [{"role":"assistant", "content":response_text}]
+        
+            # new_sliding_window 크기 관리
+            new_sliding_window = self.manage_sliding_window_size(new_sliding_window)
+
+            return {"response": response_text, "new_sliding_window": new_sliding_window}
+        
         except Exception as e:
             logger.error(f"Error in get_chating: {str(e)}")
             raise ValueError("Failed to process chat request") from e
     
+    async def prepare_sliding_window(self, session, session_id: int, sliding_window: List[Dict[str, str]]) -> List[Dict[str, str]]:
+        sliding_window_executor = SlidingWindowExecutor(
+            host=self.api_sliding_url,
+            api_key=self.api_key,
+            api_key_primary_val=self.api_key_primary_val,
+            request_id=str(session_id)
+        )
+
+        request_data = {
+            "messages": [{"role": "system", "content": SYSTEM_PROMPT_CHATBOT}] + sliding_window,
+            "maxTokens": 3000
+        }
+
+        logger.info(f"세션 ID {session_id}에 대한 Sliding Window 실행")
+        return sliding_window_executor.execute(request_data)
+    
+    async def prepare_completion(self, session, session_id: int):
+        return ChatCompletionExecutor(
+            host = self.api_completion_url,
+            api_key = self.api_key,
+            api_key_primary_val = self.api_key_primary_val,
+            request_id = str(session_id)
+        )
+    
+    def manage_sliding_window_size(self, sliding_window: List[Dict[str, str]]) -> List[Dict[str, str]]:
+        max_window_size = settings.MAX_SLIDING_WINDOW_SIZE
+        if len(sliding_window) > max_window_size:
+            return [sliding_window[0]] + sliding_window[-(max_window_size-1):]
+        return sliding_window
+    
+    async def close(self):
+        if self.session:
+            await self.session.close()
+            self.session = None
 
     # 여기서 퀴즈 버튼을 누를 때, 현재 위치의 이름을 받아와야 합니다. (ex - 근정전)
     async def get_quiz(self, session_id: int, location: str) -> str:
