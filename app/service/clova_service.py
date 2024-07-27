@@ -7,7 +7,11 @@ import http.client
 from http import HTTPStatus
 import requests
 
-SYSTEM_PROMPT_CHATBOT = "너는 대한민국 문화재를 정확하고 재미있게 설명하는 문화해설사야. 문화재와 관련 없는 내용이 조금이라도 포함되면 {자, 다시 질문해줄래?}라고 답해."
+SYSTEM_PROMPT_CHATBOT = '''대한민국 문화재를설명하는 문화해설사입니다. 경복궁과 관련한 문화재에 대한 설명을 출력합니다.
+지시사항
+-  모든 말은 '하오'체로 한다.
+- 해당 문화재와 관련한 질문이 아니라면 답하지 않는다
+- 정확한 정보만 전달한다.'''
 SYSTEM_PROMPT_QUIZ = '''너는 대한민국 문화재에 대한 정확한 정보를 바탕으로 퀴즈를 내는 퀴즈 전문가야.
 내가 문화재를 말하면, 그 문화재와 관련한 5지선다 퀴즈를 한문제만 내줘. 
 내가 답을 말하면, 정답인지 확인해줘. 정답이라면 정답과 함께 간단한 설명을 해주고, 오답이라면 {오답입니다. 다시 한번 기회를 드리겠습니다.}라고 말해줘.
@@ -139,7 +143,10 @@ class ClovaService:
                 request_id = str(session_id)
             )
 
-            request_data = { "messages": sliding_window, "maxTokens":256 }
+            request_data = {
+                "messages": [{"role": "system", "content": SYSTEM_PROMPT_CHATBOT}] + sliding_window,
+                "maxTokens": 256
+            }
             # logger.info(f"Adjusted sliding window: {adjusted_sliding_window}")
 
             completion_executor = ChatCompletionExecutor(
