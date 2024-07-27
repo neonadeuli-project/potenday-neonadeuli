@@ -24,7 +24,7 @@ class ChatMessageResponse(BaseModel):
     id: int
     session_id: int
     role: str
-    content: str
+    content: dict
     timestamp: datetime
     
 # 채팅 세션 종료 응답 값

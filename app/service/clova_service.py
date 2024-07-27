@@ -1,4 +1,6 @@
+import logging
 import random
+from typing import Dict, List
 from app.core.config import settings
 import json
 import http.client
@@ -19,6 +21,8 @@ def parse_non_stream_response(response):
     message = result.get('message', {})
     content = message.get('content', '')
     return content.strip()
+
+logger = logging.getLogger(__name__)
 
 class CLOVAStudioExecutor:
     def __init__(self, host, api_key, api_key_primary_val, request_id):
@@ -84,10 +88,15 @@ class ChatCompletionExecutor(CLOVAStudioExecutor):
                     raise ValueError(f"오류 발생: HTTP {r.status_code}, 메시지: {r.text}")
 
 class SlidingWindowExecutor(CLOVAStudioExecutor):
+
     def execute(self, completion_request):
         endpoint = '/v1/api-tools/sliding/chat-messages/HCX-003'
         try:
+            # logger.info(f"SlidingWindowExecutor input: {sliding_window}")
+            # completion_request = {"messages": sliding_window}
+            logger.info(f"SlidingWindowExecutor request: {completion_request}")
             result, status = super().execute(completion_request, endpoint)
+            logger.info(f"SlidingWindowExecutor result: {result}, status: {status}")
             if status == 200:
                 # 슬라이딩 윈도우 적용 후 메시지를 반환
                 return result['result']['messages']
@@ -96,7 +105,7 @@ class SlidingWindowExecutor(CLOVAStudioExecutor):
                 raise ValueError(f"오류 발생: HTTP {status}, 메시지: {error_message}")
         except Exception as e:
             print(f"Error in SlidingWindowExecutor: {e}")
-            return 'Error'
+            raise
 
 class ClovaService:
     '''
@@ -104,40 +113,70 @@ class ClovaService:
     output: clova x output
     '''
     def __init__(self):
+        self.response = [
+            "네 그렇군요. 더 자세히 말씀해 주시겠어요?",
+            "그걸로 포텐데이 원픽 하실수 있으시겠어요?",
+            "이렇게 개발하다 배포는 언제하실거에요?",
+            "너나들이 개발 언제 끝나요? 광고 붙이고싶어요"
+        ]
         self.api_key = settings.CLOVA_API_KEY
         self.api_key_primary_val = settings.CLOVA_API_KEY_PRIMARY_VAL
         self.api_sliding_url = settings.CLOVA_SLIDING_API_HOST
         self.api_completion_url = settings.CLOVA_COMPLETION_API_HOST
 
-    async def get_chating(self, session_id: int, sliding_window: str) -> str:
-        sliding_window_excutor = SlidingWindowExecutor(
-            host = self.api_sliding_url,
-            api_key = self.api_key,
-            api_key_primary_val= session_id,
-        )
-        completion_executor = ChatCompletionExecutor(
-            host = self.api_completion_url,
-            api_key = self.api_key,
-            api_key_primary_val = self.api_key_primary_val,
-        )
+    async def get_clova(self, session_id: int, message: str) -> str:
+        # 임시 테스트 챗봇 응답 데이터 추출 
+        return random.choice(self.response)
 
-        adjusted_sliding_window = sliding_window_excutor.execute(sliding_window)
-        completion_request_data = {
-            "messages": adjusted_sliding_window,
-            "maxTokens": 4000,
-            "temperature": 0.5,
-            "topK": 0,
-            "topP": 0.8,
-            "repeatPenalty": 1.2,
-            "stopBefore": [],
-            "includeAiFilters": True,
-            "seed": 0
-        }
+    async def get_chatting(self, session_id: int, sliding_window: list) -> str:
+        try:
+            logger.info(f"get_chatting input - session_id: {session_id}, sliding_window: {sliding_window}")
 
-        response = completion_executor.execute(completion_request_data, stream=False)
-        response_text = parse_non_stream_response(response)
+            sliding_window_executor = SlidingWindowExecutor(
+                host = self.api_sliding_url,
+                api_key = self.api_key,
+                api_key_primary_val= self.api_key_primary_val,
+                request_id = str(session_id)
+            )
 
-        return {"response": response_text}
+            request_data = { "messages": sliding_window, "maxTokens":256 }
+            # logger.info(f"Adjusted sliding window: {adjusted_sliding_window}")
+
+            completion_executor = ChatCompletionExecutor(
+                host = self.api_completion_url,
+                api_key = self.api_key,
+                api_key_primary_val = self.api_key_primary_val,
+                request_id = str(session_id)
+            )
+
+            adjusted_sliding_window = sliding_window_executor.execute(request_data)
+
+            completion_request_data = {
+                "messages": adjusted_sliding_window,
+                "maxTokens": 400,
+                "temperature": 0.5,
+                "topK": 0,
+                "topP": 0.8,
+                "repeatPenalty": 1.2,
+                "stopBefore": [],
+                "includeAiFilters": True,
+                "seed": 0
+            }
+
+            logger.info(f"Completion request data: {completion_request_data}")
+            response = completion_executor.execute(completion_request_data, stream=False)
+
+            # 응답 로깅
+            logger.info(f"Raw API response: {response}")
+
+            response = completion_executor.execute(completion_request_data, stream=False)
+            response_text = parse_non_stream_response(response)
+
+            logger.info(f"Parsed response text: {response_text}")
+            return {"response": response_text}
+        except Exception as e:
+            logger.error(f"Error in get_chating: {str(e)}")
+            raise ValueError("Failed to process chat request") from e
     
 
     async def get_quiz(self, session_id: int, question: str) -> str:
@@ -162,8 +201,30 @@ class ClovaService:
         response = completion_executor.execute(completion_request_data, stream=False)
         response_text = parse_non_stream_response(response)
 
-        return {"response": response_text}
+        # 여기서 response_text를 파싱하여 구조화된 데이터로 변환
+        parsed_quiz = self._parse_quiz_response(response_text)
+
+        return parsed_quiz
     
+    def _parse_quiz_response(self, response_text: str) -> dict:
+        # 여기서 response_text를 파싱하여 필요한 형식으로 변환
+        # 이 부분은 실제 API 응답 형식에 따라 구현해야 합니다
+        # 예시:
+        quiz_text = "퀴즈 질문 추출"
+        options = [
+            {"id": 1, "text": "선택지 1"},
+            {"id": 2, "text": "선택지 2"},
+            {"id": 3, "text": "선택지 3"},
+            {"id": 4, "text": "선택지 4"},
+            {"id": 5, "text": "선택지 5"}
+        ]
+        correct_option_id = 1  # 정답 옵션 ID 추출
+
+        return {
+            "quiz_text": quiz_text,
+            "options": options,
+            "correct_option_id": correct_option_id
+        }
 
     async def get_summary(self, session_id: int, content: str) -> str:
         completion_executor = ChatCompletionExecutor(

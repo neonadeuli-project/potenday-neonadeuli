@@ -14,13 +14,13 @@ from app.core.database import Base
 
 class RoleType(enum.Enum):
     user = "user"
-    bot = "bot"
+    bot = "assistant"
 
 class ChatMessage(Base):
     __tablename__ = 'chat_messages'
     id = Column(Integer, primary_key=True, index=True)
     session_id = Column(Integer, ForeignKey('chat_sessions.id'))
-    role = Column(Enum('user', 'bot', name='role_enum'))
+    role = Column(Enum('user', 'assistant', name='role_enum'))
     content = Column(Text)
     timestamp = Column(DateTime, default=datetime.now)
     created_at = Column(DateTime, default=datetime.now)

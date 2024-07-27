@@ -2,7 +2,7 @@ import logging
 
 from fastapi import logger
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import update, values
+from sqlalchemy import update, values, desc
 from sqlalchemy.future import select
 from sqlalchemy.exc import SQLAlchemyError
 from datetime import datetime
@@ -92,6 +92,15 @@ class ChatRepository:
             values(**kwargs)
         )
         await self.db.commit()
+    
+    # 채팅 최근 저장된 메시지 1개 조회
+    async def get_latest_message(self, session_id: int, role: str) -> ChatMessage:
+        query = select(ChatMessage).where(
+            (ChatMessage.session_id == session_id) & 
+            (ChatMessage.role == role)
+        ).order_by(desc(ChatMessage.timestamp)).limit(1)
+        result = await self.db.execute(query)
+        return result.scalars().first()
     
     # 채팅 세션 종료
     async def update_session(self, session_id: int) -> ChatSession:

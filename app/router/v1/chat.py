@@ -20,8 +20,7 @@ from app.schemas.chat import (
     ChatSessionRequest, 
     ChatMessageRequest,
     ChatMessageResponse, 
-    ChatSessionEndResponse,
-    ChatInfoResponse
+    ChatSessionEndResponse
 )
 
 # 로깅 설정
@@ -32,7 +31,10 @@ router = APIRouter()
 
 # 새로운 채팅 세션 생성
 @router.post("/sessions", response_model=ChatSessionResponse)
-async def create_chat_session(chat_session: ChatSessionRequest, db: AsyncSession = Depends(get_db)):
+async def create_chat_session(
+    chat_session: ChatSessionRequest, 
+    db: AsyncSession = Depends(get_db)
+):
     chat_service = ChatService(db)
     try:
         new_session = await chat_service.create_chat_session(
@@ -58,34 +60,51 @@ async def create_chat_session(chat_session: ChatSessionRequest, db: AsyncSession
         raise HTTPException(status_code=500, detail="서버 오류가 발생했습니다.")
 
 # 메시지 전송 및 챗봇 응답
+# @router.post("/sessions/{session_id}/messages", response_model=ChatMessageResponse)
+# async def add_chat_message(session_id: int, message: ChatMessageRequest, db: AsyncSession = Depends(get_db)):
+#     chat_service = ChatService(db)
+#     try:
+#         user_message, bot_message = await chat_service.update_conversation(session_id, message.content)
+#         return ChatMessageResponse (
+#             id=bot_message.id,
+#             session_id=bot_message.session_id,
+#             role=bot_message.role,
+#             content=bot_message.content,
+#             timestamp=bot_message.timestamp
+#         )
+#     except ValueError as e:
+#         logger.warning(f"ValueError in create_chat_session: {str(e)}")
+#         raise HTTPException(status_code=400, detail=str(e))
+#     except SQLAlchemyError as e:
+#         logger.error(f"SQLAlchemyError in create_chat_session: {str(e)}", exc_info=True)
+#         raise HTTPException(status_code=500, detail="데이터베이스 오류가 발생했습니다.")
+#     except Exception as e:
+#         logger.error(f"Unexpected error in create_chat_session: {str(e)}", exc_info=True)
+#         raise HTTPException(status_code=500, detail="서버 오류가 발생했습니다.")
+
+# 메시지 전송 및 챗봇 응답
 @router.post("/sessions/{session_id}/messages", response_model=ChatMessageResponse)
 async def add_chat_message(session_id: int, message: ChatMessageRequest, db: AsyncSession = Depends(get_db)):
     chat_service = ChatService(db)
     try:
-        user_message, bot_message = await chat_service.update_conversation(session_id, message.content)
-        return ChatMessageResponse (
-            id=bot_message.id,
-            session_id=bot_message.session_id,
-            role=bot_message.role,
-            content=bot_message.content,
-            timestamp=bot_message.timestamp
-        )
+        bot_message = await chat_service.update_chat_conversation(session_id, message.content)
+        return ChatMessageResponse (**bot_message)
     except ValueError as e:
-        logger.warning(f"ValueError in create_chat_session: {str(e)}")
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.warning(f"메시지 전송 API Value 값 에러: {str(e)}")
+        raise HTTPException(status_code=404, detail=str(e))
     except SQLAlchemyError as e:
-        logger.error(f"SQLAlchemyError in create_chat_session: {str(e)}", exc_info=True)
+        logger.error(f"메시지 전송 API 데이터베이스: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail="데이터베이스 오류가 발생했습니다.")
     except Exception as e:
-        logger.error(f"Unexpected error in create_chat_session: {str(e)}", exc_info=True)
+        logger.error(f"메시지 전송 API 서버 에러: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail="서버 오류가 발생했습니다.")
 
-# 해당 건축물 관련 챗봇 정보 제공
+# 건축물 관련 챗봇 정보 제공
 @router.get("/{session_id}/heritage/buildings/{building_id}/info", response_model=HeritageBuildingInfoResponse)
 async def get_heritage_building_info(
     session_id: int,
     building_id: int,
-    content: str = Query(None, description="문화재에 대한 챗봇의 정보 조회"),
+    content: str = Query(..., description="문화재에 대한 챗봇의 정보 조회"),
     db: Session = Depends(get_db)
 ):
     chat_service = ChatService(db)
@@ -102,13 +121,48 @@ async def get_heritage_building_info(
             bot_response=bot_response or ""
         )
     except ValueError as e:
+        logger.warning(f"건축물 정보 제공 API Value 값 에러: {str(e)}")
         raise HTTPException(status_code=404, detail=str(e))
+    except SQLAlchemyError as e:
+        logger.error(f"건축물 정보 제공 API 데이터베이스: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail="데이터베이스 오류가 발생했습니다.")
     except Exception as e:
-        raise HTTPException(status_code=500, detail="Internal server error")
+        logger.error(f"건축물 정보 제공 API 서버 에러: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail="서버 오류가 발생했습니다.")
+
+# 건축물 관련 퀴즈 정보 제공
+@router.get("/{session_id}/heritage/buildings/{building_id}/quiz")
+async def get_heritage_building_quiz(
+    session_id: int,
+    building_id: int,
+    content: str = Query(..., description="문화재에 대한 챗봇의 퀴즈 조회"),
+    db: Session = Depends(get_db)
+):
+    chat_service = ChatService(db)
+    clova_service = ClovaService()
+    heritage_repository = HeritageRepository(db)
+    chat_repository = ChatRepository(db)
+    service = HeritageService(chat_service, heritage_repository, chat_repository, clova_service)
+
+    try:
+        quiz_response = await service.get_heritage_building_quiz(session_id, building_id, content)
+        return quiz_response
+    except ValueError as e:
+        logger.warning(f"퀴즈 정보 제공 API Value 값 에러: {str(e)}")
+        raise HTTPException(status_code=404, detail=str(e))
+    except SQLAlchemyError as e:
+        logger.error(f"퀴즈 정보 제공 API 데이터베이스: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail="데이터베이스 오류가 발생했습니다.")
+    except Exception as e:
+        logger.error(f"퀴즈 정보 제공 API 서버 에러: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail="서버 오류가 발생했습니다.")
 
 # 채팅 세션 종료
 @router.post("/sessions/{session_id}/end", response_model=ChatSessionEndResponse)
-async def end_chat_session(session_id: int, db: AsyncSession = Depends(get_db)):
+async def end_chat_session(
+    session_id: int, 
+    db: AsyncSession = Depends(get_db)
+):
     chat_service = ChatService(db)
     try:
         ended_session = await chat_service.end_chat_session(session_id)
@@ -123,11 +177,11 @@ async def end_chat_session(session_id: int, db: AsyncSession = Depends(get_db)):
             updated_at=ended_session.updated_at
         )
     except ValueError as e:
-        logger.warning(f"ValueError in create_chat_session: {str(e)}")
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.warning(f"채팅 세션 종료 API Value 값 에러: {str(e)}")
+        raise HTTPException(status_code=404, detail=str(e))
     except SQLAlchemyError as e:
-        logger.error(f"SQLAlchemyError in create_chat_session: {str(e)}", exc_info=True)
+        logger.error(f"채팅 세션 종료 API 데이터베이스: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail="데이터베이스 오류가 발생했습니다.")
     except Exception as e:
-        logger.error(f"Unexpected error in create_chat_session: {str(e)}", exc_info=True)
+        logger.error(f"예상치 못한 채팅 세션 종료 API 서버 에러: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail="서버 오류가 발생했습니다.")
