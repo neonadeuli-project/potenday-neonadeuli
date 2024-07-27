@@ -306,7 +306,7 @@ class ClovaService:
             )
 
             completion_request_data = {
-                "messages": [{"role": "system", "content": SYSTEM_PROMPT_CHATBOT}, {"role":"uesr", "content": content}],
+                "messages": [{"role": "system", "content": SYSTEM_PROMPT_SUMMARY}, {"role":"uesr", "content": content}],
                 "maxTokens": 400,
                 "temperature": 0.5,
                 "topK": 0,
