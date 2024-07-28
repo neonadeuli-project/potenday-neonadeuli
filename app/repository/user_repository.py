@@ -9,9 +9,10 @@ class UserRepository:
         self.db = db
 
     # 임시 로그인 유저 저장
-    async def create_user(self, name: str) -> User:
+    async def create_user(self, name: str, token: str) -> User:
         user = User(
             name=name,
+            token=token,
             created_at=datetime.now(),
             updated_at=datetime.now()
         )
@@ -27,4 +28,8 @@ class UserRepository:
     
     async def get_user_by_id(self, user_id: int) -> User:
         result = await self.db.execute(select(User).where(User.id == user_id))
+        return result.scalars().first()
+
+    async def get_user_by_token(self, token: str) -> User:
+        result = await self.db.execute(select(User).where(User.token == token))
         return result.scalars().first()

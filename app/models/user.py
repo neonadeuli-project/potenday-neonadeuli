@@ -11,6 +11,7 @@ class User(Base):
     email = Column(String(255), unique=True, index=True)
     name = Column(String(20))
     provider = Column(String(255))
+    token = Column(String(255), unique=True, index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
