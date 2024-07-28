@@ -1,10 +1,11 @@
 import json
 import logging
-from typing import Callable, List
+from typing import Any, Callable, Dict, List
 from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import datetime
 
 from app.core.config import settings
+from app.repository.heritage_repository import HeritageRepository
 from app.service.clova_service import ClovaService
 from app.repository.chat_repository import ChatRepository
 from app.repository.user_repository import UserRepository
@@ -17,6 +18,7 @@ class ChatService:
         self.db = db
         self.user_repository = UserRepository(db)
         self.chat_repository = ChatRepository(db)
+        self.heritage_repository = HeritageRepository(db)
         self.clova_service = ClovaService()
     
     # 채팅 세션 생성하기
@@ -28,43 +30,6 @@ class ChatService:
             except Exception as e:
                 logger.error(f"create_chat_session 메소드 에러 발생: {str(e)}", exc_info=True)
                 raise
-
-    # async def update_conversation(self, session_id: int, content: str):
-    #     # 기존 대화 내용 가져오기
-    #     chat_session = await self.chat_repository.get_chat_session(session_id)
-    #     full_conversation = json.loads(chat_session.full_conversation) if chat_session.full_conversation else []
-    #     sliding_window = json.loads(chat_session.sliding_window) if chat_session.sliding_window else []
-
-    #     # 사용자 메시지 저장
-    #     user_message = await self.chat_repository.create_message(session_id, "user", content)
-
-    #     # full_conversation & sliding_window 업데이트
-    #     full_conversation.append({"role": "user", "content": content})
-    #     sliding_window.append({"role": "user", "content": content})
-
-    #     # 네이버 클로바 API 호출
-    #     bot_response = await self.clova_service.get_clova(session_id, sliding_window) 
-
-    #     # 챗봇 메시지 저장
-    #     bot_message = await self.chat_repository.create_message(session_id, "assistant", bot_response)
-
-    #     # full_conversation & sliding_window  다시 업데이트
-    #     full_conversation.append({"role": "assistant", "content": bot_response})
-    #     sliding_window.append({"role": "assistant", "content": bot_response})
-
-    #     # 슬라이딩 윈도우 크기 제한
-    #     max_window_size = settings.MAX_SLIDING_WINDOW_SIZE
-    #     if len(sliding_window) > max_window_size:
-    #         sliding_window = sliding_window[-max_window_size:]
-
-    #     # 업데이트 된 대화 내용 저장
-    #     await self.chat_repository.update_message(
-    #         session_id,
-    #         full_conversation=json.dumps(full_conversation, ensure_ascii=False),
-    #         sliding_window=json.dumps(sliding_window, ensure_ascii=False)
-    #     )
-
-    #     return user_message, bot_message
          
     # 채팅 대화 내용 업데이트
     async def update_conversation(self, session_id: int, content: str, clova_method: Callable):
@@ -85,7 +50,6 @@ class ChatService:
 
         # Clova 메시지 저장
         await self.update_conversation_content(session_id, "assistant", bot_response, full_conversation, sliding_window)
-
 
         # 슬라이딩 윈도우 크기 제한
         # sliding_window = self.limit_sliding_window(sliding_window)
@@ -150,10 +114,43 @@ class ChatService:
             "content": bot_response,
             "timestamp": bot_message.timestamp.isoformat()
         }
+    
+    # 퀴즈 제공 메서드
+    async def update_quiz_conversation(self, session_id: int, building_id: int) -> Dict[str, Any]:
+        building = await self.heritage_repository.get_heritage_building_by_id(building_id)
+        if not building:
+            raise ValueError(f"Building with id {building_id} not found")
 
-    # # 건축물 퀴즈 제공 메서드
-    # async def update_quiz_conversation(self, session_id: int, content: str):
-    #     return await self.update_conversation(session_id, content, self.clova_service.get_quiz)
+        quiz_response = await self.clova_service.get_quiz(session_id, building.name)
+        quiz_text = quiz_response["quiz_text"]
+        options = quiz_response["options"]
+        new_sliding_window = quiz_response["new_sliding_window"]
+
+        # 기존 대화 내용 가져오기
+        chat_session = await self.chat_repository.get_chat_session(session_id)
+        full_conversation = json.loads(chat_session.full_conversation) if chat_session.full_conversation else []
+        sliding_window = json.loads(chat_session.sliding_window) if chat_session.sliding_window else []
+        
+        # 퀴즈 내용을 채팅 세션에 저장
+        await self.update_conversation_content(session_id, "assistant", quiz_text, full_conversation, sliding_window)
+
+        # 업데이트 된 대화 내용 저장
+        await self.save_conversation(session_id, full_conversation, new_sliding_window)
+
+        return {
+            "quiz_text": quiz_text,
+            "options": options,
+        }
+    
+    def parse_quiz_response(self, response: str) -> Dict[str, Any]:
+        lines = response.split("\n")
+        quiz_text = lines[0]
+        options = lines[1:6]  # Assuming the options are on lines 1 to 5
+
+        return {
+            "quiz_text": quiz_text,
+            "options": options,
+        }
 
     # # 채팅 요약 메서드
     # async def update_summary_conversation(self, session_id: int, content: str):
