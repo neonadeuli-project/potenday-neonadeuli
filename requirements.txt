@@ -14,3 +14,4 @@ cryptography
 mysqlclient
 alembic
 aiohttp
+python-jose

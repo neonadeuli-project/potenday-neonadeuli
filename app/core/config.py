@@ -58,6 +58,11 @@ class Settings(BaseSettings):
     #퀴즈 제한 설정
     QUIZ_COUNT : int
 
+    # 로그인 보안 관리
+    SECRET_KEY : str
+    ALGORITHM : str
+    ACCESS_TOKEN_EXPIRE_MINUTES : int
+
     @computed_field
     @property
     def SQLALCHEMY_DATABASE_URI(self) -> MySQLDsn:
