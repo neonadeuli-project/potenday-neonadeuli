@@ -20,14 +20,14 @@ class ChatService:
         self.clova_service = ClovaService()
     
     # 채팅 세션 생성하기
-    # async def create_chat_session(self, user_id: int, heritage_id: int):
-    #     logger.info(f"ChatService에서 채팅 세션 생성을 시도합니다. (user_id: {user_id}, heritage_id: {heritage_id})")
-    #     async with self.db.begin():
-    #         try:
-    #             return await self.chat_repository.create_chat_session(user_id, heritage_id)
-    #         except Exception as e:
-    #             logger.error(f"create_chat_session 메소드 에러 발생: {str(e)}", exc_info=True)
-    #             raise
+    async def create_chat_session(self, user_id: int, heritage_id: int):
+        logger.info(f"ChatService에서 채팅 세션 생성을 시도합니다. (user_id: {user_id}, heritage_id: {heritage_id})")
+        async with self.db.begin():
+            try:
+                return await self.chat_repository.create_chat_session(user_id, heritage_id)
+            except Exception as e:
+                logger.error(f"create_chat_session 메소드 에러 발생: {str(e)}", exc_info=True)
+                raise
 
     # async def update_conversation(self, session_id: int, content: str):
     #     # 기존 대화 내용 가져오기
