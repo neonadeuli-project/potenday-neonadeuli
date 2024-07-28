@@ -1,3 +1,4 @@
+import secrets
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import Depends
 
@@ -7,13 +8,15 @@ from app.utils.common import get_unique_nickname
 from app.models.user import User
 
 class UserService:
+    
     def __init__(self, db: AsyncSession):
         self.user_repository = UserRepository(db)
 
     # 임시 유저 생성
     async def create_temporary_user(self) -> User:
         nickname = await get_unique_nickname(self.user_repository.db)
-        user = await self.user_repository.create_user(name=nickname)
+        token = secrets.token_urlsafe(32)
+        user = await self.user_repository.create_user(name=nickname, token=token)
         return user
     
     async def get_user_by_token(self, token: str) -> User:
