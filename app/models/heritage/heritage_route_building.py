@@ -18,7 +18,7 @@ class HeritageRouteBuilding(Base):
     id = Column(Integer, primary_key=True, index=True)
     route_id = Column(Integer, ForeignKey('heritage_routes.id'))
     building_id = Column(Integer, ForeignKey('heritage_buildings.id'))
-    order = Column(Integer)
+    visit_order = Column(Integer)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 

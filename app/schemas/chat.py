@@ -1,6 +1,8 @@
-from typing import Optional
+from typing import List, Optional
 from pydantic import BaseModel
 from datetime import datetime
+
+from app.schemas.heritage import HeritageRouteInfo, HeritageBuildingInfo
 
 # 새로운 채팅 세션 생성 요청 값
 class ChatSessionRequest(BaseModel):
@@ -9,11 +11,12 @@ class ChatSessionRequest(BaseModel):
 
 # 새로운 채팅 세션 생성 응답 값
 class ChatSessionResponse(BaseModel):
-    id: int
-    user_id: int
-    heritage_id: int
+    session_id: int
     start_time: datetime
     created_at: datetime
+    heritage_id: int
+    heritage_name: str
+    routes: List[HeritageRouteInfo]
 
 # 채팅 메시지 생성 요청 값
 class ChatMessageRequest(BaseModel):
@@ -24,7 +27,7 @@ class ChatMessageResponse(BaseModel):
     id: int
     session_id: int
     role: str
-    content: dict
+    content: str
     timestamp: datetime
     
 # 채팅 세션 종료 응답 값
