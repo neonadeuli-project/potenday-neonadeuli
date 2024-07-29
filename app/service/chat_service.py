@@ -9,6 +9,7 @@ from app.repository.heritage_repository import HeritageRepository
 from app.service.clova_service import ClovaService
 from app.repository.chat_repository import ChatRepository
 from app.repository.user_repository import UserRepository
+from app.schemas.chat import ChatSessionResponse
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +34,14 @@ class ChatService:
                 heritage = await self.heritage_repository.get_heritage_by_id(heritage_id)
                 routes = await self.heritage_repository.get_routes_with_buildings_by_heritages_id(heritage_id)
 
-                return new_session, heritage, routes
+                return ChatSessionResponse(
+                    session_id=new_session.id,
+                    start_time=new_session.start_time,
+                    created_at=new_session.created_at,
+                    heritage_id=heritage.id,
+                    heritage_name=heritage.name,
+                    routes=routes
+                )
             except Exception as e:
                 logger.error(f"create_chat_session 메소드 에러 발생: {str(e)}", exc_info=True)
                 raise

@@ -47,19 +47,21 @@ async def create_chat_session(
 ):
     chat_service = ChatService(db)
     try:
-        new_session, heritage, routes = await chat_service.create_chat_session(
-            user_id=chat_session.user_id, 
-            heritage_id=chat_session.heritage_id
-        )
 
-        return ChatSessionResponse (
-            session_id = new_session.id,
-            start_time=new_session.start_time,
-            created_at=new_session.created_at,
-            heritage_id=heritage.id,
-            heritage_name=heritage.name,
-            routes=routes
-        )
+        return await chat_service.create_chat_session(chat_session.user_id, chat_session.heritage_id)
+        # new_session, heritage, routes = await chat_service.create_chat_session(
+        #     user_id=chat_session.user_id, 
+        #     heritage_id=chat_session.heritage_id
+        # )
+
+        # return ChatSessionResponse (
+        #     session_id = new_session.id,
+        #     start_time=new_session.start_time,
+        #     created_at=new_session.created_at,
+        #     heritage_id=heritage.id,
+        #     heritage_name=heritage.name,
+        #     routes=routes
+        # )
     except ValueError as e:
         logger.warning(f"ValueError in create_chat_session: {str(e)}")
         raise HTTPException(status_code=404, detail=str(e))

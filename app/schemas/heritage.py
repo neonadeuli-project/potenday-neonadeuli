@@ -4,11 +4,12 @@ from datetime import datetime
 
 
 class HeritageBuildingInfo(BaseModel):
-    id: int
+    building_id: int
     name: str
+    visit_order: int
     
 class HeritageRouteInfo(BaseModel):
-    id: int
+    route_id: int
     name: str
     buildings: List[HeritageBuildingInfo]
 
