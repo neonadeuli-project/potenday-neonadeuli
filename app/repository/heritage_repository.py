@@ -46,29 +46,10 @@ class HeritageRepository:
     
     # 문화재 건축물 코스 조회
     async def get_routes_with_buildings_by_heritages_id(self, heritage_id: int) -> List[HeritageRouteInfo]:
-        # HeritageRouteAlias = aliased(HeritageRoute)
-        # HeritageBuildingAlias = aliased(HeritageBuilding)
-        # HeritageRouteBuildingAlias = aliased(HeritageRouteBuilding)
-
-        # result = await self.db.execute(select(
-        #                             HeritageRouteAlias.id.label('route_id'),
-        #                             HeritageRouteAlias.name.label('route_name'),
-        #                             HeritageBuildingAlias.id.label('building_id'),
-        #                             HeritageBuildingAlias.name.label('building_name'),
-        #                             HeritageRouteBuildingAlias.visit_order.label('visit_order')
-        #                         )
-        #                         .join(HeritageRouteBuilding, HeritageRouteAlias.id == HeritageRouteBuilding.route_id)
-        #                         .join(HeritageBuildingAlias, HeritageRouteBuilding.building_id == HeritageBuildingAlias.id)
-        #                         .where(HeritageRouteAlias.heritage_id == heritage_id)
-        #                         .order_by(HeritageRouteAlias.id, HeritageRouteBuilding.visit_order))
-        query = (
-            select(HeritageRoute)
-            .options(joinedload(HeritageRoute.route_buildings).joinedload(HeritageRouteBuilding.buildings))
-            .where(HeritageRoute.heritage_id == heritage_id)
-        )
-
-        result = await self.db.execute(query)
-        # rows = result.fetchall()
+        result = await self.db.execute(select(HeritageRoute)
+                                       .options(joinedload(HeritageRoute.route_buildings)
+                                                .joinedload(HeritageRouteBuilding.buildings))
+                                        .where(HeritageRoute.heritage_id == heritage_id))
 
         routes = result.unique().scalars().all()
 
@@ -80,29 +61,10 @@ class HeritageRepository:
                     HeritageBuildingInfo(
                         building_id=rb.buildings.id, 
                         name=rb.buildings.name,
-                        visit_order=rb.visit_order
+                        coordinate=(rb.buildings.longitude, rb.buildings.latitude)
                     )
                     for rb in sorted(route.route_buildings, key=lambda x: x.visit_order)
                 ]
             )
             for route in routes
         ]
-
-        # routes = {}
-        # for row in rows:
-        #     if row.route_id not in routes:
-        #         routes[row.route_id] = HeritageRouteInfo(
-        #             id=row.route_id,
-        #             name=row.route_name,
-        #             buildings=[]
-        #         )
-        #     routes[row.route_id].buildings.append(HeritageBuildingInfo(
-        #         id=row.building_id,
-        #         name=row.building_name
-        #     ))
-        
-        # 각 루트 내의 건물들을 visit_order에 따라 정렬
-        # for route in routes.values():
-        #     route["buildings"].sort(key=lambda x: x["visit_order"])
-
-        return list(routes.values())
