@@ -7,9 +7,11 @@ from sqlalchemy import update, values, desc
 from sqlalchemy.future import select
 from sqlalchemy.exc import SQLAlchemyError
 from datetime import datetime
+from sqlalchemy.sql import func
 
 from app.models.chat.chat_session import ChatSession
 from app.models.chat.chat_message import ChatMessage
+from app.models.enums import RoleType
 from app.models.user import User
 from app.models.heritage.heritage import Heritage
 
@@ -25,7 +27,7 @@ class ChatRepository:
     async def create_chat_session(self, user_id: int, heritage_id: int) -> ChatSession:
         logger.info(f"ChatRepository에서 채팅 세션을 생성합니다. (user_id: {user_id}, heritage_id: {heritage_id})")
         try:
-            # 활성 세션 확인
+            # 채팅 세션 활성화 상태 확인
             active_session = await self.get_active_session(user_id, heritage_id)
             if active_session:
                 logger.info(f"기존 활성 세션을 반환합니다. (session_id: {active_session.id})")
@@ -63,6 +65,7 @@ class ChatRepository:
             logger.error(f"create_or_get_chat_session 메소드 에러 발생 : {str(e)}", exc_info=True)
             raise
 
+    # 채팅 세션 활성화 상태 조회
     async def get_active_session(self, user_id: int, heritage_id: int) -> Optional[ChatSession]:
         result = await self.db.execute(select(ChatSession)
                                        .where(
@@ -74,8 +77,45 @@ class ChatRepository:
                                     )
         return result.scalar_one_or_none()
     
+    # 채팅 세션 종료
+    async def end_chat_session(self, session_id: int) -> Optional[ChatSession]:
+        try:
+            await self.db.execute(update(ChatSession)
+                                            .where(
+                                                (ChatSession.id == session_id) &
+                                                (ChatSession.end_time == None)
+                                            )
+                                            .values(end_time=func.now())
+                                        )
+            await self.db.commit()
+
+            # 업데이트 된 세션 조회
+            result = await self.db.execute(select(ChatSession)
+                                           .where(ChatSession.id == session_id)
+                                        )
+        
+            updated_session = result.scalar_one_or_none()
+
+            if updated_session:
+                logger.info(f"채팅 세션 ID {session_id} 가 성공적으로 종료되었습니다.")
+                # 세션 객체 반환을 위해 필요한 관계들을 로드
+                # await self.db.refresh(updated_session, ['users', 'heritages', 'chat_messages'])
+                return updated_session
+            else:
+                logger.info(f"종료할 채팅 세션 ID가 {session_id} 인 활성 세션을 찾을 수 없습니다.")
+                return None
+            
+        except SQLAlchemyError as e:
+            logger.error(f"채팅 세션 ID가 {session_id} 인 채팅 세션이 종료되는 동안 데이터 베이스에 오류가 발생했습니다.: {str(e)}")
+            await self.db.rollback()
+            raise ValueError(f"데이터베이스 오류 : {str(e)}")
+        except Exception as e:
+            logger.error(f"채팅 세션 ID가 {session_id} 인 채팅 세션이 종료되는 동안 예상치 못한 에러 발생 : {str(e)}")
+            await self.db.rollback()
+            raise ValueError(f"예상치 못한 오류 : {str(e)}")
+    
     # 새로운 채팅 메시지 저장 (새 레코드 추가)
-    async def create_message(self, session_id: int, role: str, content: str) -> ChatMessage:
+    async def create_message(self, session_id: int, role: RoleType, content: str) -> ChatMessage:
         # 세션 유효성 검사
         # session = await self.db.execute(select(ChatSession)
         #                                 .where(ChatSession.id == session_id))
@@ -85,7 +125,7 @@ class ChatRepository:
         
         new_message = ChatMessage(
             session_id=session_id,
-            role=role,
+            role=role.value,
             content=content,
             timestamp=datetime.now()
         )
@@ -104,38 +144,14 @@ class ChatRepository:
         await self.db.commit()
     
     # 채팅 최근 저장된 메시지 1개 조회
-    async def get_latest_message(self, session_id: int, role: str) -> ChatMessage:
+    async def get_latest_message(self, session_id: int, role: RoleType) -> ChatMessage:
         query = select(ChatMessage).where(
             (ChatMessage.session_id == session_id) & 
-            (ChatMessage.role == role)
+            (ChatMessage.role == role.value)
         ).order_by(desc(ChatMessage.timestamp)).limit(1)
         result = await self.db.execute(query)
         return result.scalars().first()
     
-    # 채팅 세션 종료
-    async def update_session(self, session_id: int) -> ChatSession:
-        try:
-            session = await self.get_chat_session(session_id)
-            if not session:
-                raise ValueError("유효하지 않은 세션입니다.")
-            
-            # 채팅 세션 종료
-            session.end_time = datetime.now()
-            session.updated_at = datetime.now()
-            logger.info(f"ChatRepository에서 채팅 세션을 종료합니다. (session_id: {session_id})")
-            await self.db.flush()
-            await self.db.refresh(session)
-            return session
-        except SQLAlchemyError as e:
-            logger.error(f"데이터베이스 오류: {str(e)}")
-            await self.db.rollback()
-            raise
-        except Exception as e:
-            logger.error(f"예상치 못한 오류: {str(e)}")
-            await self.db.rollback()
-            raise 
-    
-
     # 특정 채팅 세션 조회
     async def get_chat_session(self, session_id: int) -> ChatSession:
         result = await self.db.execute(select(ChatSession)

@@ -6,7 +6,7 @@ from sqlalchemy.future import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from app.core.deps import get_db
+from app.core.deps import get_db, get_token
 from app.service.chat_service import ClovaService
 from app.service.heritage_service import HeritageService
 from app.repository.heritage_repository import HeritageRepository
@@ -47,21 +47,7 @@ async def create_chat_session(
 ):
     chat_service = ChatService(db)
     try:
-
         return await chat_service.create_chat_session(chat_session.user_id, chat_session.heritage_id)
-        # new_session, heritage, routes = await chat_service.create_chat_session(
-        #     user_id=chat_session.user_id, 
-        #     heritage_id=chat_session.heritage_id
-        # )
-
-        # return ChatSessionResponse (
-        #     session_id = new_session.id,
-        #     start_time=new_session.start_time,
-        #     created_at=new_session.created_at,
-        #     heritage_id=heritage.id,
-        #     heritage_name=heritage.name,
-        #     routes=routes
-        # )
     except ValueError as e:
         logger.warning(f"ValueError in create_chat_session: {str(e)}")
         raise HTTPException(status_code=404, detail=str(e))
@@ -72,36 +58,23 @@ async def create_chat_session(
         logger.error(f"Unexpected error in create_chat_session: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail="서버 오류가 발생했습니다.")
 
-# 메시지 전송 및 챗봇 응답
-# @router.post("/sessions/{session_id}/messages", response_model=ChatMessageResponse)
-# async def add_chat_message(session_id: int, message: ChatMessageRequest, db: AsyncSession = Depends(get_db)):
-#     chat_service = ChatService(db)
-#     try:
-#         user_message, bot_message = await chat_service.update_conversation(session_id, message.content)
-#         return ChatMessageResponse (
-#             id=bot_message.id,
-#             session_id=bot_message.session_id,
-#             role=bot_message.role,
-#             content=bot_message.content,
-#             timestamp=bot_message.timestamp
-#         )
-#     except ValueError as e:
-#         logger.warning(f"ValueError in create_chat_session: {str(e)}")
-#         raise HTTPException(status_code=400, detail=str(e))
-#     except SQLAlchemyError as e:
-#         logger.error(f"SQLAlchemyError in create_chat_session: {str(e)}", exc_info=True)
-#         raise HTTPException(status_code=500, detail="데이터베이스 오류가 발생했습니다.")
-#     except Exception as e:
-#         logger.error(f"Unexpected error in create_chat_session: {str(e)}", exc_info=True)
-#         raise HTTPException(status_code=500, detail="서버 오류가 발생했습니다.")
-
 # 채팅 메시지 전송
 @router.post("/sessions/{session_id}/messages", response_model=ChatMessageResponse)
-async def add_chat_message(session_id: int, message: ChatMessageRequest, db: AsyncSession = Depends(get_db)):
+async def add_chat_message(
+    session_id: int, 
+    message: ChatMessageRequest, 
+    db: AsyncSession = Depends(get_db)
+):
     chat_service = ChatService(db)
     try:
-        bot_message = await chat_service.update_chat_conversation(session_id, message.content)
-        return ChatMessageResponse (**bot_message)
+        bot_message_response : ChatMessageResponse = await chat_service.update_chat_conversation(session_id, message.content)
+        return ChatMessageResponse (
+            id=bot_message_response.id,
+            session_id=bot_message_response.session_id,
+            role=bot_message_response.role,
+            content=bot_message_response.content,
+            timestamp=bot_message_response.timestamp
+        )
     except ValueError as e:
         logger.warning(f"메시지 전송 API Value 값 에러: {str(e)}")
         raise HTTPException(status_code=404, detail=str(e))
@@ -161,22 +134,27 @@ async def get_heritage_building_quiz(
 # 채팅 세션 종료
 @router.post("/sessions/{session_id}/end", response_model=ChatSessionEndResponse)
 async def end_chat_session(
-    session_id: int, 
+    session_id: int,
+    # token: str = Depends(get_token), 
     db: AsyncSession = Depends(get_db)
 ):
+    # user_service = UserService(db)
     chat_service = ChatService(db)
     try:
+        # 토큰으로 사용자 확인
+        # user = await user_service.get_user_by_token(token)
+        # if not user:
+        #     raise HTTPException(status_code=401, detail="Invalid token")
+
+        # 사용자가 해당 세션을 종료할 권한이 있는지 확인
+        # if not await chat_service.user_can_end_session(user.id, session_id):
+        #     raise HTTPException(status_code=403, detail="You don't have permission to end this session")
+
+        # 세션 종료
         ended_session = await chat_service.end_chat_session(session_id)
 
-        return ChatSessionEndResponse (
-            id = ended_session.id,
-            user_id=ended_session.user_id,
-            heritage_id=ended_session.heritage_id,
-            start_time=ended_session.start_time,
-            end_time=ended_session.end_time,
-            created_at=ended_session.created_at,
-            updated_at=ended_session.updated_at
-        )
+        return ended_session
+    
     except ValueError as e:
         logger.warning(f"채팅 세션 종료 API Value 값 에러: {str(e)}")
         raise HTTPException(status_code=404, detail=str(e))

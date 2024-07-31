@@ -1,15 +1,18 @@
 import json
 import logging
-from typing import Any, Callable, Dict, List
-from sqlalchemy.ext.asyncio import AsyncSession
-from datetime import datetime
 
-from app.core.config import settings
+from typing import Any, Callable, Dict, List
+from fastapi import HTTPException
+
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.exc import SQLAlchemyError
+
+from app.models.enums import RoleType
 from app.repository.heritage_repository import HeritageRepository
 from app.service.clova_service import ClovaService
 from app.repository.chat_repository import ChatRepository
 from app.repository.user_repository import UserRepository
-from app.schemas.chat import ChatSessionResponse
+from app.schemas.chat import ChatSessionResponse, ChatMessageResponse, ChatSessionEndResponse
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +48,33 @@ class ChatService:
             except Exception as e:
                 logger.error(f"create_chat_session 메소드 에러 발생: {str(e)}", exc_info=True)
                 raise
+    
+    # 채팅 세션 종료하기
+    async def end_chat_session(self, session_id: int) -> ChatSessionEndResponse:
+        logger.info(f"ChatService에서 채팅 세션 종료를 시도합니다. (session_id: {session_id})")
+        try:
+            ended_session = await self.chat_repository.end_chat_session(session_id)
+
+            # 세션을 찾지 못했거나 이미 종료된 경우
+            if ended_session is None:
+                raise HTTPException(status_code=404, detail="활성화 된 세션을 찾을 수 없음")
+            
+            # TODO: 채팅 요약 서비스 추가 별도 메소드로 할지 요약 API와 같이 처리할지 논의 필요
+
+            return ChatSessionEndResponse (
+                id = ended_session.id,
+                user_id = ended_session.user_id,
+                heritage_id=ended_session.heritage_id,
+                start_time=ended_session.start_time,
+                end_time=ended_session.end_time,
+                created_at=ended_session.created_at,
+                updated_at=ended_session.updated_at
+            )
+                
+        except SQLAlchemyError as e:
+            raise HTTPException(status_code=500, detail="데이터 베이스 오류 발생")
+        except Exception as e:
+            raise HTTPException(status_code=500, detail="예상치 못한 에러 발생")
          
     # 채팅 대화 내용 업데이트
     async def update_conversation(self, session_id: int, content: str, clova_method: Callable):
@@ -56,7 +86,7 @@ class ChatService:
         logger.debug(f"Current sliding window: {sliding_window}")
         
         # User 메시지 저장
-        await self.update_conversation_content(session_id, "user", content, full_conversation, sliding_window)
+        await self.update_conversation_content(session_id, RoleType.USER, content, full_conversation, sliding_window)
         
         # Clova API 호출
         clova_responses = await self.get_clova_response(clova_method, session_id, sliding_window)
@@ -64,10 +94,7 @@ class ChatService:
         new_sliding_window = clova_responses["new_sliding_window"]
 
         # Clova 메시지 저장
-        await self.update_conversation_content(session_id, "assistant", bot_response, full_conversation, sliding_window)
-
-        # 슬라이딩 윈도우 크기 제한
-        # sliding_window = self.limit_sliding_window(sliding_window)
+        await self.update_conversation_content(session_id, RoleType.ASSISTANT, bot_response, full_conversation, sliding_window)
 
         # 업데이트 된 대화 내용 저장
         await self.save_conversation(session_id, full_conversation, new_sliding_window)
@@ -75,22 +102,17 @@ class ChatService:
         return bot_response
     
     # 대화 내용 업데이트
-    async def update_conversation_content(self, session_id: int, role: str, content: str, full_conversation: list, sliding_window: list):
+    async def update_conversation_content(self, session_id: int, role: RoleType, content: str, full_conversation: list, sliding_window: list):
         content_str = json.dumps(content, ensure_ascii=False) if isinstance(content, dict) else content
         message = await self.chat_repository.create_message(session_id, role, content_str)
-        full_conversation.append({"role": role, "content": content_str})
-        sliding_window.append({"role": role, "content": content_str})
+        full_conversation.append({"role": role.value, "content": content_str})
+        sliding_window.append({"role": role.value, "content": content_str})
         return message
     
     # Clova 응답 조회
     async def get_clova_response(self, clova_method: Callable, session_id: int, sliding_window: list, *args, **kwargs) -> str:
         response = await clova_method(session_id, sliding_window)
         return response
-    
-    # 슬라이딩 윈도우 크기 제한
-    # def limit_sliding_window(self, sliding_window: list) -> list:
-    #     max_window_size = settings.MAX_SLIDING_WINDOW_SIZE
-    #     return sliding_window[-max_window_size:] if len(sliding_window) > max_window_size else sliding_window
     
     # 업데이트 된 대화 내용 저장
     async def save_conversation(self, session_id: int, full_conversation: list, sliding_window: list):
@@ -100,35 +122,25 @@ class ChatService:
             sliding_window=json.dumps(sliding_window, ensure_ascii=False)
         )
 
-    # 채팅 세션 종료하기
-    async def end_chat_session(self, session_id: int):
-        logger.info(f"ChatService에서 채팅 세션 종료를 시도합니다. (session_id: {session_id})")
-        async with self.db.begin():
-            try:
-                return await self.chat_repository.update_session(session_id)
-            except Exception as e:
-                logger.error(f"end_chat_session 메소드 에러 발생: {str(e)}", exc_info=True)
-                raise
-
     # 채팅 메시지 메서드
-    async def update_chat_conversation(self, session_id: int, content: str):
+    async def update_chat_conversation(self, session_id: int, content: str) -> ChatMessageResponse:
         # 사용자 메시지 저장 및 Clova 응답 받기
         bot_response =  await self.update_conversation(session_id, content, self.clova_service.get_chatting)
 
         # 가장 최근 챗봇 메시지 조회 
         # 최근 메시지 뿐 아니라 연관된 다른 컬럼 데이터도 가져올 수 있기 때문에 bot_response와 구분
-        bot_message = await self.chat_repository.get_latest_message(session_id, "assistant")
+        bot_message = await self.chat_repository.get_latest_message(session_id, RoleType.ASSISTANT)
         
         if bot_message is None:
             raise ValueError("대화 업데이트 이후 챗봇 메시지를 찾을 수 없습니다.")
 
-        return {
-            "id": bot_message.id,
-            "session_id": session_id,
-            "role": "assistant",
-            "content": bot_response,
-            "timestamp": bot_message.timestamp.isoformat()
-        }
+        return ChatMessageResponse (
+            id=bot_message.id,
+            session_id=session_id,
+            role=RoleType.ASSISTANT.value,
+            content=bot_response,
+            timestamp=bot_message.timestamp
+        )
     
     # 퀴즈 제공 메서드
     async def update_quiz_conversation(self, session_id: int, building_id: int) -> Dict[str, Any]:
