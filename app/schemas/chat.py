@@ -21,8 +21,8 @@ class ChatSessionResponse(BaseModel):
 # 채팅 메시지 생성 요청 값
 class ChatMessageRequest(BaseModel):
     content: str
-    role: str
-    timestamp: datetime
+    role: Optional[str] = None
+    timestamp: Optional[datetime] = None
 
 # 채팅 메시지 응답 값
 class ChatMessageResponse(BaseModel):
@@ -38,6 +38,6 @@ class ChatSessionEndResponse(BaseModel):
     user_id: int
     heritage_id: int
     start_time: datetime
-    end_time: Optional[datetime] = None 
+    end_time: datetime
     created_at: datetime
     updated_at: datetime
