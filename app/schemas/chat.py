@@ -21,6 +21,8 @@ class ChatSessionResponse(BaseModel):
 # 채팅 메시지 생성 요청 값
 class ChatMessageRequest(BaseModel):
     content: str
+    role: str
+    timestamp: datetime
 
 # 채팅 메시지 응답 값
 class ChatMessageResponse(BaseModel):
