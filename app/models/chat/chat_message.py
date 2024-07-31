@@ -8,22 +8,19 @@ from sqlalchemy import (
     Text
 )
 from sqlalchemy.orm import relationship
-from datetime import datetime
+from sqlalchemy.sql import func
 
 from app.core.database import Base
-
-class RoleType(enum.Enum):
-    user = "user"
-    bot = "assistant"
+from app.models.enums import RoleType
 
 class ChatMessage(Base):
     __tablename__ = 'chat_messages'
     id = Column(Integer, primary_key=True, index=True)
     session_id = Column(Integer, ForeignKey('chat_sessions.id'))
-    role = Column(Enum('user', 'assistant', name='role_enum'))
+    role = Column(Enum(RoleType))
     content = Column(Text)
-    timestamp = Column(DateTime, default=datetime.now)
-    created_at = Column(DateTime, default=datetime.now)
-    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+    timestamp = Column(DateTime(timezone=True), default=func.now())
+    created_at = Column(DateTime(timezone=True), default=func.now())
+    updated_at = Column(DateTime(timezone=True), default=func.now(), onupdate=func.now())
 
     chat_sessions = relationship("ChatSession", back_populates="chat_messages")
