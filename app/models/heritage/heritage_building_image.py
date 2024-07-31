@@ -17,7 +17,7 @@ class HeritageBuildingImage(Base):
     image_url = Column(String(255))
     description = Column(String(255))
     alt_text = Column(String(100))
-    order = Column(Integer)
+    image_order = Column(Integer)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
