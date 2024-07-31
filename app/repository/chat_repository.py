@@ -1,4 +1,5 @@
 import logging
+from typing import Optional
 
 from fastapi import logger
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -24,7 +25,13 @@ class ChatRepository:
     async def create_chat_session(self, user_id: int, heritage_id: int) -> ChatSession:
         logger.info(f"ChatRepository에서 채팅 세션을 생성합니다. (user_id: {user_id}, heritage_id: {heritage_id})")
         try:
-            # 사용자 여부 확인
+            # 활성 세션 확인
+            active_session = await self.get_active_session(user_id, heritage_id)
+            if active_session:
+                logger.info(f"기존 활성 세션을 반환합니다. (session_id: {active_session.id})")
+                return active_session
+
+            # 사용자 여부 확인 & 새 세션 생성
             user = await self.db.execute(select(User).where(User.id == user_id))
             user = user.scalar_one_or_none()
             if not user:
@@ -53,16 +60,19 @@ class ChatRepository:
             return new_session
 
         except ValueError as e:
-            logger.error(str(e))
+            logger.error(f"create_or_get_chat_session 메소드 에러 발생 : {str(e)}", exc_info=True)
             raise
 
-        except SQLAlchemyError as e:
-            logger.error(f"데이터베이스 오류: {str(e)}")
-            raise
-
-        except Exception as e:
-            logger.error(f"예상치 못한 오류: {str(e)}")
-            raise
+    async def get_active_session(self, user_id: int, heritage_id: int) -> Optional[ChatSession]:
+        result = await self.db.execute(select(ChatSession)
+                                       .where(
+                                           (ChatSession.user_id == user_id) &
+                                           (ChatSession.heritage_id == heritage_id) &
+                                           (ChatSession.end_time == None) # 세션 종료 유무 확인
+                                       )
+                                       .order_by(ChatSession.created_at.desc())
+                                    )
+        return result.scalar_one_or_none()
     
     # 새로운 채팅 메시지 저장 (새 레코드 추가)
     async def create_message(self, session_id: int, role: str, content: str) -> ChatMessage:
