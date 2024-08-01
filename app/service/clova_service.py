@@ -171,40 +171,45 @@ class ClovaService:
             adjusted_sliding_window = sliding_window_executor.execute(request_data)
             logger.info(f"Adjusted sliding window: {adjusted_sliding_window}")
 
-            completion_executor = ChatCompletionExecutor(
-                host = self.api_completion_url,
-                api_key = self.api_key,
-                api_key_primary_val = self.api_key_primary_val,
-                request_id = str(session_id)
-            )
+            # 마지막 메시지 ASSISTANT 응답인 경우 이를 resopnse로 사용
+            if adjusted_sliding_window[-1]['role'] == 'assistant':
+                response_text = adjusted_sliding_window[-1]['content']
+            else:
+                # ASSISTANT 응답 없는 경우 Completion 요청 실행
+                completion_executor = ChatCompletionExecutor(
+                    host = self.api_completion_url,
+                    api_key = self.api_key,
+                    api_key_primary_val = self.api_key_primary_val,
+                    request_id = str(session_id)
+                )
 
-            # Completion 요청 실행
-            completion_request_data = {
-                "messages": adjusted_sliding_window,
-                "maxTokens": 400,
-                "temperature": 0.5,
-                "topK": 0,
-                "topP": 0.8,
-                "repeatPenalty": 1.2,
-                "stopBefore": [],
-                "includeAiFilters": True,
-                "seed": 0
-            }
+                # Completion 요청 실행
+                completion_request_data = {
+                    "messages": adjusted_sliding_window,
+                    "maxTokens": 400,
+                    "temperature": 0.5,
+                    "topK": 0,
+                    "topP": 0.8,
+                    "repeatPenalty": 1.2,
+                    "stopBefore": [],
+                    "includeAiFilters": True,
+                    "seed": 0
+                }
 
-            logger.info(f"요청 데이터 완료: {completion_request_data}")
-            response = completion_executor.execute(completion_request_data, stream=False)
+                logger.info(f"요청 데이터 완료: {completion_request_data}")
+                response = completion_executor.execute(completion_request_data, stream=False)
 
-            # 응답 로깅
-            logger.info(f"세션 ID {session_id}에 대한 Raw한 API 응답 {response}")
+                # 응답 로깅
+                logger.info(f"세션 ID {session_id}에 대한 Raw한 API 응답 {response}")
 
-            response_text = parse_non_stream_response(response)
-            logger.info(f"세션 ID {session_id}에 대한 Parsed 된 응답 {response_text}")
+                response_text = parse_non_stream_response(response)
+                logger.info(f"세션 ID {session_id}에 대한 Parsed 된 응답 {response_text}")
 
-            # 새로운 sliding window에 방금 얻은 response를 더해서 반환
-            new_sliding_window = adjusted_sliding_window + [{"role":"assistant", "content":response_text}]
+                # 새로운 sliding window에 방금 얻은 response를 더해서 반환
+                # adjusted_sliding_window.append({"role":"assistant", "content":response_text})
         
             # new_sliding_window 크기 관리
-            new_sliding_window = self.manage_sliding_window_size(new_sliding_window)
+            new_sliding_window = self.manage_sliding_window_size(adjusted_sliding_window)
 
             return {"response": response_text, "new_sliding_window": new_sliding_window }
         
@@ -260,14 +265,6 @@ class ClovaService:
         except Exception as e:
             logger.error(f"Error in get_chating: {str(e)}")
             raise ValueError("Failed to process chat request") from e
-        
-    def _parse_quiz_response(self, response_text: str, previous_messages: list) -> Tuple[str, str, list]:
-        lines = response_text.split("\n")
-        quiz_text = lines[0]
-        options = lines[1:6]
-        options_str = "\n".join(options)
-        new_sliding_window = previous_messages + [{"role": "assistant", "content": response_text}]
-        return quiz_text, options_str, new_sliding_window
 
     # 여기서는 full_conversation에 들어있던 question과 기존 sliding_window, 
     # 선택한 보기가 입력으로 들어와야 합니다. (ex - 1번)
