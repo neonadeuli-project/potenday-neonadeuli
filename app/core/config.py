@@ -57,6 +57,8 @@ class Settings(BaseSettings):
 
     #퀴즈 제한 설정
     QUIZ_COUNT : int
+    MAX_RETRIES : int
+    RETRY_DELAY : int
 
     # 로그인 보안 관리
     SECRET_KEY : str
