@@ -3,7 +3,8 @@ from sqlalchemy import (
     Integer, 
     ForeignKey, 
     DateTime, 
-    Text
+    Text,
+    JSON
 )
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -21,6 +22,9 @@ class ChatSession(Base):
     quiz_count = Column(Integer, default=settings.QUIZ_COUNT)
     full_conversation = Column(Text)    # 전체 대화 내용 저장
     sliding_window = Column(Text)       # 슬라이딩 윈도우 내용 저장
+    summary_keywords = Column(JSON)     # 요약 키워드 저장
+    visited_buildings = Column(JSON)    # 방문한 건물 목록 저장
+    summary_generated_at = Column(DateTime(timezone=True), nullable=True)    # 요약 생성 시간 추적
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
