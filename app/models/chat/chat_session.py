@@ -31,3 +31,4 @@ class ChatSession(Base):
     users = relationship("User", back_populates="chat_sessions")
     heritages = relationship("Heritage", back_populates="chat_sessions")
     chat_messages = relationship("ChatMessage", back_populates="chat_sessions")
+    quizzes = relationship("Quiz", back_populates="chat_session")

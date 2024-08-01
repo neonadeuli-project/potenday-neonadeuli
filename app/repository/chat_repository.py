@@ -95,17 +95,16 @@ class ChatRepository:
             result = await self.db.execute(select(ChatSession)
                                            .where(ChatSession.id == session_id)
                                         )
-        
             updated_session = result.scalar_one_or_none()
 
             if updated_session:
                 logger.info(f"채팅 세션 ID {session_id} 가 성공적으로 종료되었습니다.")
                 # 세션 객체 반환을 위해 필요한 관계들을 로드
                 # await self.db.refresh(updated_session, ['users', 'heritages', 'chat_messages'])
-                return updated_session
             else:
                 logger.info(f"종료할 채팅 세션 ID가 {session_id} 인 활성 세션을 찾을 수 없습니다.")
-                return None
+            
+            return updated_session
             
         except SQLAlchemyError as e:
             logger.error(f"채팅 세션 ID가 {session_id} 인 채팅 세션이 종료되는 동안 데이터 베이스에 오류가 발생했습니다.: {str(e)}")
@@ -189,5 +188,3 @@ class ChatRepository:
                                 )
                             )
         await self.db.commit()
-        
-    

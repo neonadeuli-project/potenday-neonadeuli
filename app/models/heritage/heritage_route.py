@@ -11,11 +11,8 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
 from app.core.database import Base
-import enum
+from app.models.enums import RouteType
 
-class RouteType(enum.Enum):
-    RECOMMENDED = "recommended"
-    CUSTOM = "custom"
 
 class HeritageRoute(Base):
     __tablename__ = 'heritage_routes'

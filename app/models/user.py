@@ -4,10 +4,6 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
 from app.core.database import Base
-
-# class UserRole(enum.Enum):
-#     USER = "user"
-#     ADMIN = "admin"
     
 class User(Base):
     __tablename__ = 'users'

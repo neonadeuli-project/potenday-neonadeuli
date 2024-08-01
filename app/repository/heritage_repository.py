@@ -1,5 +1,6 @@
+import json
 import logging
-from typing import List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import update, values, join
@@ -12,6 +13,7 @@ from app.models.heritage.heritage_building import HeritageBuilding
 from app.models.heritage.heritage_route import HeritageRoute
 from app.models.heritage.heritage_route_building import HeritageRouteBuilding
 from app.models.heritage.heritage import Heritage
+from app.models.quiz import Quiz
 from app.schemas.heritage import HeritageRouteInfo, HeritageBuildingInfo
 
 logger = logging.getLogger(__name__)
@@ -76,3 +78,23 @@ class HeritageRepository:
             )
             for route in routes
         ]
+    
+    # 문화재 건축물 퀴즈 조회
+    async def get_quiz_by_id(self, quiz_id: int):
+        quiz = await self.db.execute(select(Quiz)
+                                     .where(Quiz.id == quiz_id))
+        return quiz.scalar_one_or_none()
+    
+    # 문화재 건축물 퀴즈 저장
+    async def save_quiz_data(self, session_id: int, parsed_quiz: Dict[str, Any]):
+        quiz = Quiz(
+            session_id = session_id,
+            question=parsed_quiz['question'],
+            options=json.dumps(parsed_quiz['options']),
+            answer=parsed_quiz['answer'],
+            explanation=parsed_quiz['explanation']
+        )
+        self.db.add(quiz)
+        await self.db.commit()
+        await self.db.refresh(quiz)
+        return quiz
