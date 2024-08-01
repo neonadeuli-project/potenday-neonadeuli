@@ -1,6 +1,6 @@
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.exc import SQLAlchemyError
@@ -21,7 +21,9 @@ from app.schemas.chat import (
     ChatSessionRequest, 
     ChatMessageRequest,
     ChatMessageResponse, 
-    ChatSessionEndResponse
+    ChatSessionEndResponse,
+    ChatSummaryResponse,
+    VisitedBuildingList
 )
 from app.error.heritage_exceptions import (
     BuildingNotFoundException, 
@@ -136,12 +138,32 @@ async def get_heritage_building_quiz(
     except Exception as e:
         logger.error(f"퀴즈 정보 제공 API 서버 에러: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail="서버 오류가 발생했습니다.")
+    
+# 채팅 요약 제공
+@router.get("/sessions/{session_id}/summary", response_model=ChatSummaryResponse)
+async def get_chat_summary(
+    session_id: int,
+    db: AsyncSession = Depends(get_db)
+):
+    chat_service = ChatService(db)
+    try:
+        summary = await chat_service.update_summary_conversation(session_id)
+
+        if not summary:
+            raise HTTPException(status_code=404, detail="요약 정보를 아직 사용할 수 없습니다.")
+        
+        return ChatSummaryResponse(**summary)
+    except Exception as e:
+        logger.error(f"채팅 요약 API 에러: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail="서버 오류 발생")
 
 # 채팅 세션 종료
 @router.post("/sessions/{session_id}/end", response_model=ChatSessionEndResponse)
 async def end_chat_session(
     session_id: int,
-    # token: str = Depends(get_token), 
+    # token: str = Depends(get_token),
+    visited_buildings: VisitedBuildingList,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db)
 ):
     # user_service = UserService(db)
@@ -158,6 +180,13 @@ async def end_chat_session(
 
         # 세션 종료
         ended_session = await chat_service.end_chat_session(session_id)
+
+        # 요약 작업 백그라운드 실행
+        background_tasks.add_task(
+            chat_service.generated_and_save_chat_summary,
+            session_id,
+            visited_buildings.buildings
+        )
 
         return ended_session
     
