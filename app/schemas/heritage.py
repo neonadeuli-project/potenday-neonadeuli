@@ -15,18 +15,18 @@ class HeritageRouteInfo(BaseModel):
     name: str
     buildings: List[HeritageBuildingInfo]
 
-# 정보 버튼에 제공될 내부 건축물 정보 
-class HeritageBuildingInfoResponse(BaseModel):
-    image_url: str
-    bot_response: str
+# 건축물 정보 버튼에 제공될 내부 건축물 정보 
+class BuildingInfoButtonResponse(BaseModel):
+    image_url: Optional[str] = None
+    bot_response: Optional[str] = None
 
 # 퀴즈 버튼에 제공될 퀴즈 정보
-class QuizOption(BaseModel):
-    id: int
-    text: str
+class QuizInfoButtonResponse(BaseModel):
+    question: int
+    options: List[str]
+    answer: str
+    explanation: str
 
-# 퀴즈 버튼에 제공될 퀴즈 정답 정보
-class HeritageBuildingQuizResponse(BaseModel):
-    quiz_text: str
-    options: str
-    # correct_option: int
+# 퀴즈 버튼에 제공될 퀴즈 정보
+class QuizInfoButtonResponseTest(BaseModel):
+    quiz_content: str
