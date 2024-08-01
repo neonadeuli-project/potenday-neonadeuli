@@ -1,8 +1,7 @@
-import asyncio
 from functools import lru_cache
 import logging
 import aiohttp
-from typing import Dict, List
+from typing import Any, Callable, Dict, List, Tuple
 from app.core.config import settings
 import json
 import http.client
@@ -10,6 +9,7 @@ from http import HTTPStatus
 import requests
 
 from app.core.config import settings
+from app.utils.common import parse_quiz_content
 
 
 SYSTEM_PROMPT_CHATBOT = '''대한민국 문화재를설명하는 문화해설사입니다. 경복궁과 관련한 문화재에 대한 설명을 출력합니다.
@@ -18,8 +18,10 @@ SYSTEM_PROMPT_CHATBOT = '''대한민국 문화재를설명하는 문화해설사
 - 해당 문화재와 관련한 질문이 아니라면 답하지 않는다
 - 정확한 정보만 전달한다.'''
 SYSTEM_PROMPT_QUIZ = '''너는 대한민국 문화재에 대한 정확한 정보를 바탕으로 퀴즈를 내는 퀴즈 전문가야.
-내가 문화재를 말하면, 그 문화재와 관련한 5지선다 퀴즈를 한문제만 내줘. 보기가 짧고 간단한 5지 선다로 주어져야 해. 그 이외의 다른 텍스트는 절대 출력하지마. 
-{예시} 경복궁의 중심이 되는 건물은 다음 중 무엇일까요?\n1. 근정전\n2. 사정전\n3. 교태전\n4. 강녕전\n5. 향원정'''
+내가 문화재를 말하면, 그 문화재와 관련한 5지선다 퀴즈를 한문제만 내줘. 보기가 짧고 간단한 5지 선다로 주어져야 해. 
+그리고 5지 선다에 대한 정답과 정답 해설까지 작성하여 보여줘야 해. 다음 제공해주는 예시의 형식에 맞게 정확하게 작성해 줘.
+그 이외의 다른 텍스트는 절대 출력하지마. 
+{예시} 경복궁의 중심이 되는 건물은 다음 중 무엇일까요? \n1. 근정전 \n2. 사정전 \n3. 교태전 \n4. 강녕전 \n5. 향원정 \n 정답: 2번 \n 설명: 근정전은 경복궁의 중심 건물로, 조선 왕조의 국왕이 공식적으로 업무를 보던 장소입니다. 중요한 의식과 국가 행사가 이곳에서 열렸으며, 경복궁의 주요 건물 중 하나로 손꼽힙니다.'''
 SYSTEM_PROMPT_ANSWER = '''너는 대한민국 문화재에 대한 정확한 정보를 바탕으로 퀴즈를 내는 퀴즈 전문가야. 내가 문제와 답을 알려주면, 정답인지 아닌지 확인하고 간결하게 설명해줘.
 지시사항
 - 모든 말은 '하오'체로 한다.
@@ -37,6 +39,11 @@ SYSTEM_PROMPT_ANSWER = '''너는 대한민국 문화재에 대한 정확한 정�
 맞소! 정답은 4번 경회루요.'''
 SYSTEM_PROMPT_SUMMARY = '''너는 대한민국 문화재를 정확하고 재미있게 설명하는 문화해설사야.
 내가 문화재를 말하면, 그 문화재에 대한 키워드를 10가지 뽑아서 보여줘. 맨 처음에는 반드시 #너나들이 가 들어가야해. {예시} #너나들이 #광화문 #경복궁 #종로 #조선시대 #궁궐 #국보 #해치 #드므 #십장생 '''
+
+SYSTEM_PROMPT_SUMMARY_TEST = '''너는 대한민국 문화재를 정확하고 재미있게 설명하는 문화해설사야.
+내가 대화한 전체 내용을 읽고 뽑을 수 있는 키워드를 10가지 뽑아서 보여줘. 맨 처음에는 반드시 #너나들이 가 들어가야해. {예시} #너나들이 #광화문 #경복궁 #종로 #조선시대 #궁궐 #국보 #해치 #드므 #십장생 '''
+
+
 MAX_TOKEN = 4000
 
 def parse_non_stream_response(response):
@@ -140,73 +147,36 @@ class ClovaService:
         self.api_key_primary_val = settings.CLOVA_API_KEY_PRIMARY_VAL
         self.api_sliding_url = settings.CLOVA_SLIDING_API_HOST
         self.api_completion_url = settings.CLOVA_COMPLETION_API_HOST
-        self.session = None
-
-    # 이 메서드로 HTTP 세션을 재사용하여 연결 오버헤드 최소화
-    async def get_session(self):
-        if self.session is None or self.session.close():
-            self.session = aiohttp.ClientSession()
-        return self.session
-    
-    # TODO : 추후 Redis를 통한 API 응답을 캐싱하기
-    # @lru_cache(maxsize=100)
-    # async def get_cached_response(self, cache_key):
-    #     # 이 메서드는 캐시된 응답을 반환합니다.
-    #     # 실제 구현에서는 Redis나 다른 캐싱 시스템을 사용할 수 있습니다.
-    #     pass
-
-    # async def set_cached_response(self, cache_key, response):
-    #     # 이 메서드는 응답을 캐시에 저장합니다.
-    #     pass
 
     async def get_chatting(self, session_id: int, sliding_window: list) -> str:
         try:
             logger.info(f"get_chatting input - session_id: {session_id}, sliding_window: {sliding_window}")
 
-            # 캐시 키 생성
-            # cache_key = f"clova_response:{session_id}:{hash(json.dumps(sliding_window))}"
-
-            # 캐시된 응답 확인
-            # cached_response = await self.get_cached_response(cache_key)
-            # if cached_response:
-            #     logger.info("Returning cached response")
-            #     return cached_response
-            
-            session = await self.get_session()
-
-            # 동시에 Sliding Window와 Completion 요청 준비
-            sliding_window_task = self.prepare_sliding_window(session, session_id, sliding_window)
-            completion_task = self.prepare_completion(session, session_id)
+            if sliding_window is None:
+                sliding_window = []
 
             # Sliding Window 요청
-            # sliding_window_executor = SlidingWindowExecutor(
-            #     host = self.api_sliding_url,
-            #     api_key = self.api_key,
-            #     api_key_primary_val= self.api_key_primary_val,
-            #     request_id = str(session_id)
-            # )
+            sliding_window_executor = SlidingWindowExecutor(
+                host = self.api_sliding_url,
+                api_key = self.api_key,
+                api_key_primary_val= self.api_key_primary_val,
+                request_id = str(session_id)
+            )
 
-            # request_data = {
-            #     "messages": [{"role": "system", "content": SYSTEM_PROMPT_CHATBOT}] + sliding_window,
-            #     "maxTokens": 3000
-            # }
-            # logger.info(f"Adjusted sliding window: {adjusted_sliding_window}")
+            request_data = {
+                "messages": [{"role": "system", "content": SYSTEM_PROMPT_CHATBOT}] + sliding_window,
+                "maxTokens": 3000
+            }
 
-            # async with session.post(self.api_sliding_url, json=request_data, headers=sliding_window_headers) as resp:
-            #     if resp.status != 200:
-            #         raise ValueError(f"Sliding Window API error: {resp.status}")
-            #     adjusted_sliding_window = await resp.json()
+            adjusted_sliding_window = sliding_window_executor.execute(request_data)
+            logger.info(f"Adjusted sliding window: {adjusted_sliding_window}")
 
-            # completion_executor = ChatCompletionExecutor(
-            #     host = self.api_completion_url,
-            #     api_key = self.api_key,
-            #     api_key_primary_val = self.api_key_primary_val,
-            #     request_id = str(session_id)
-            # )
-
-            # 두 작업 동시에 실행하기
-            # adjusted_sliding_window = sliding_window_executor.execute(request_data)
-            adjusted_sliding_window, completion_executor = await asyncio.gather(sliding_window_task, completion_task)
+            completion_executor = ChatCompletionExecutor(
+                host = self.api_completion_url,
+                api_key = self.api_key,
+                api_key_primary_val = self.api_key_primary_val,
+                request_id = str(session_id)
+            )
 
             # Completion 요청 실행
             completion_request_data = {
@@ -236,49 +206,21 @@ class ClovaService:
             # new_sliding_window 크기 관리
             new_sliding_window = self.manage_sliding_window_size(new_sliding_window)
 
-            return {"response": response_text, "new_sliding_window": new_sliding_window}
+            return {"response": response_text, "new_sliding_window": new_sliding_window }
         
         except Exception as e:
             logger.error(f"Error in get_chating: {str(e)}")
             raise ValueError("Failed to process chat request") from e
-    
-    async def prepare_sliding_window(self, session, session_id: int, sliding_window: List[Dict[str, str]]) -> List[Dict[str, str]]:
-        sliding_window_executor = SlidingWindowExecutor(
-            host=self.api_sliding_url,
-            api_key=self.api_key,
-            api_key_primary_val=self.api_key_primary_val,
-            request_id=str(session_id)
-        )
-
-        request_data = {
-            "messages": [{"role": "system", "content": SYSTEM_PROMPT_CHATBOT}] + sliding_window,
-            "maxTokens": 3000
-        }
-
-        logger.info(f"세션 ID {session_id}에 대한 Sliding Window 실행")
-        return sliding_window_executor.execute(request_data)
-    
-    async def prepare_completion(self, session, session_id: int):
-        return ChatCompletionExecutor(
-            host = self.api_completion_url,
-            api_key = self.api_key,
-            api_key_primary_val = self.api_key_primary_val,
-            request_id = str(session_id)
-        )
-    
+        
     def manage_sliding_window_size(self, sliding_window: List[Dict[str, str]]) -> List[Dict[str, str]]:
         max_window_size = settings.MAX_SLIDING_WINDOW_SIZE
         if len(sliding_window) > max_window_size:
             return [sliding_window[0]] + sliding_window[-(max_window_size-1):]
         return sliding_window
-    
-    async def close(self):
-        if self.session:
-            await self.session.close()
-            self.session = None
 
     # 여기서 퀴즈 버튼을 누를 때, 현재 위치의 이름을 받아와야 합니다. (ex - 근정전)
-    async def get_quiz(self, session_id: int, location: str) -> str:
+    # async def get_quiz(self, session_id: int, building_name: str) -> Dict[str, str]:
+    async def get_quiz(self, session_id: int, building_name: str) -> str:
         try:
             completion_executor = ChatCompletionExecutor(
                 host = self.api_completion_url,
@@ -287,7 +229,11 @@ class ClovaService:
                 request_id = str(session_id)
             )
             
-            request_data = [{"role": "system", "content": SYSTEM_PROMPT_QUIZ}, {"role": "user", "content": location}]
+            request_data = [
+                {"role": "system", "content": SYSTEM_PROMPT_QUIZ}, 
+                {"role": "user", "content": f"{building_name}에 대한 퀴즈를 생성해주세요."}
+            ]
+
             completion_request_data = {
                 "messages": request_data,
                 "maxTokens": 300,
@@ -300,41 +246,28 @@ class ClovaService:
                 "seed": 0
             }
 
+            logger.info(f"Quiz request data: {completion_request_data}")
             response = completion_executor.execute(completion_request_data, stream=False)
-
+            logger.info(f"Raw API response for session ID {session_id}: {response}")
+            
             # 경복궁의 중심이 되는 건물은 다음 중 무엇일까요?\n1. 근정전\n2. 사정전\n3. 교태전\n4. 강녕전\n5. 향원정 형식
             # 이 반환값이 full_conversation에 저장되어야 합니다.
             # 아니라면 퀴즈의 정답을 사용자가 선택할때까지 이 질문을 가지고 있어야 해요....
             response_text = parse_non_stream_response(response)
+            logger.info(f"Parsed response for session ID {session_id}: {response_text}")
 
-            # 여기서 response_text를 파싱하여 구조화된 데이터로 변환
-            # parsed_quiz = self._parse_quiz_response(response_text)
-
-            return {"response": response_text}
+            return response_text
         except Exception as e:
             logger.error(f"Error in get_chating: {str(e)}")
             raise ValueError("Failed to process chat request") from e
-    
-    # def _parse_quiz_response(self, response_text: str) -> dict:
-    #     # 여기서 response_text를 파싱하여 필요한 형식으로 변환
-    #     # 이 부분은 실제 API 응답 형식에 따라 구현해야 합니다
-    #     # 예시:
-    #     response_text = response_text.split('\n')
-    #     quiz_text = response_text[0]
-    #     options = [
-    #         {"id": 1, "text": "선택지 1"},
-    #         {"id": 2, "text": "선택지 2"},
-    #         {"id": 3, "text": "선택지 3"},
-    #         {"id": 4, "text": "선택지 4"},
-    #         {"id": 5, "text": "선택지 5"}
-    #     ]
-    #     correct_option_id = 1  # 정답 옵션 ID 추출
-
-    #     return {
-    #         "quiz_text": quiz_text,
-    #         "options": options,
-    #         "correct_option_id": correct_option_id
-    #     }
+        
+    def _parse_quiz_response(self, response_text: str, previous_messages: list) -> Tuple[str, str, list]:
+        lines = response_text.split("\n")
+        quiz_text = lines[0]
+        options = lines[1:6]
+        options_str = "\n".join(options)
+        new_sliding_window = previous_messages + [{"role": "assistant", "content": response_text}]
+        return quiz_text, options_str, new_sliding_window
 
     # 여기서는 full_conversation에 들어있던 question과 기존 sliding_window, 
     # 선택한 보기가 입력으로 들어와야 합니다. (ex - 1번)
@@ -374,6 +307,24 @@ class ClovaService:
         except Exception as e:
             logger.error(f"Error in get_chating: {str(e)}")
             raise ValueError("Failed to process chat request") from e
+        
+    def manage_sliding_window_size(self, sliding_window: List[Dict[str, str]]) -> List[Dict[str, str]]:
+        max_window_size = settings.MAX_SLIDING_WINDOW_SIZE
+        if len(sliding_window) > max_window_size:
+            return [sliding_window[0]] + sliding_window[-(max_window_size-1):]
+        return sliding_window
+    
+    def update_sliding_window_system(self, sliding_window: List[Dict[str, str]], new_system_prompt: str) -> List[Dict[str, str]]:
+        # system 메시지를 새로운 프롬프트로 교체
+        updated_window = [{"role": "system", "content": new_system_prompt}]
+        
+        # 기존의 user와 assistant 메시지만 유지
+        for message in sliding_window:
+            if message['role'] in ['user', 'assistant']:
+                updated_window.append(message)
+        
+        return updated_window
+
     
 
     # content는 돌았던 코스 텍스트가 담겨있으면 됩니다.
@@ -387,7 +338,10 @@ class ClovaService:
             )
 
             completion_request_data = {
-                "messages": [{"role": "system", "content": SYSTEM_PROMPT_SUMMARY}, {"role":"uesr", "content": content}],
+                "messages": [
+                    {"role": "system", "content": SYSTEM_PROMPT_SUMMARY}, 
+                    {"role":"user", "content": content}
+                ],
                 "maxTokens": 400,
                 "temperature": 0.5,
                 "topK": 0,
@@ -401,7 +355,8 @@ class ClovaService:
             response = completion_executor.execute(completion_request_data, stream=False)
             response_text = parse_non_stream_response(response)
 
-            return {"response": response_text}
+            keywords = response_text.split()[1:]    # '너나들이' 키워드 제외
+            return {"keywords": keywords}
         except Exception as e:
-            logger.error(f"Error in get_chating: {str(e)}")
+            logger.error(f"Error in get_chatting: {str(e)}")
             raise ValueError("Failed to process chat request") from e
