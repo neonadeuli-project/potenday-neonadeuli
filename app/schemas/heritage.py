@@ -22,10 +22,11 @@ class BuildingInfoButtonResponse(BaseModel):
 
 # 퀴즈 버튼에 제공될 퀴즈 정보
 class QuizInfoButtonResponse(BaseModel):
-    question: int
+    question: str
     options: List[str]
-    answer: str
+    answer: int
     explanation: str
+    quiz_count : int
 
 # 퀴즈 버튼에 제공될 퀴즈 정보
 class QuizInfoButtonResponseTest(BaseModel):
