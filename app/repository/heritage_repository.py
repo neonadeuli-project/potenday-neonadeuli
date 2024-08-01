@@ -27,21 +27,29 @@ class HeritageRepository:
                                        .where(Heritage.id == heritage_id))
         return result.scalar_one()
     
+    # 문화재 이름 조회
+    async def get_heritage_building_name_by_id(self, building_id: int) -> str:
+        result = await self.db.execute(select(HeritageBuilding.name)
+                                       .where(HeritageBuilding.id == building_id)
+                                    )
+        return result.scalar_one_or_none()
+
     # 문화재 건축물 ID 조회
     async def get_heritage_building_by_id(self, building_id: int) -> Optional[HeritageBuilding]:
         result = await self.db.execute(select(HeritageBuilding)
                                        .where(HeritageBuilding.id == building_id)
                                        .options(
                                            joinedload(HeritageBuilding.building_types),
-                                           joinedload(HeritageBuilding.heritages)
-                                       ))
+                                           joinedload(HeritageBuilding.heritages))
+                                        )
         return result.scalars().first()
     
     # 문화재 건축물 이미지 조회
     async def get_heritage_building_images(self, building_id: int) -> List[HeritageBuildingImage]:
         result = await self.db.execute(select(HeritageBuildingImage)
+                                       .options(joinedload(HeritageBuildingImage.buildings))
                                        .where(HeritageBuildingImage.building_id == building_id)
-                                       .order_by(HeritageBuildingImage.order))
+                                       .order_by(HeritageBuildingImage.image_order))
         return result.scalars().all()
     
     # 문화재 건축물 코스 조회
