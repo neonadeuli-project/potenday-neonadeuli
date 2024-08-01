@@ -8,15 +8,13 @@ from sqlalchemy.orm import Session
 
 from app.core.deps import get_db, get_token
 from app.service.chat_service import ClovaService
-from app.service.heritage_service import HeritageService
 from app.repository.heritage_repository import HeritageRepository
 from app.repository.chat_repository import ChatRepository
 from app.service.chat_service import ChatService
 from app.schemas.heritage import (
-    HeritageRouteInfo,
-    HeritageBuildingInfo,
-    HeritageBuildingInfoResponse,
-    HeritageBuildingQuizResponse
+    BuildingInfoButtonResponse,
+    QuizInfoButtonResponse,
+    QuizInfoButtonResponseTest
 )    
 from app.schemas.chat import (
     ChatSessionResponse, 
@@ -25,6 +23,11 @@ from app.schemas.chat import (
     ChatMessageResponse, 
     ChatSessionEndResponse
 )
+from app.error.heritage_exceptions import (
+    BuildingNotFoundException, 
+    InvalidAssociationException, 
+    SessionNotFoundException
+)
 
 # 로깅 설정
 logging.basicConfig(level=logging.INFO)
@@ -32,12 +35,12 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-def get_heritage_service(db: AsyncSession = Depends(get_db)) -> HeritageService:
-        chat_service = ChatService(db)
-        heritage_repository = HeritageRepository(db)
-        chat_repository = ChatRepository(db)
-        clova_service = ClovaService()
-        return HeritageService(chat_service, heritage_repository, chat_repository, clova_service)
+# def get_heritage_service(db: AsyncSession = Depends(get_db)) -> HeritageService:
+#         chat_service = ChatService(db)
+#         heritage_repository = HeritageRepository(db)
+#         chat_repository = ChatRepository(db)
+#         clova_service = ClovaService()
+#         return HeritageService(chat_service, heritage_repository, chat_repository, clova_service)
 
 # 새로운 채팅 세션 생성
 @router.post("/sessions", response_model=ChatSessionResponse)
@@ -86,40 +89,43 @@ async def add_chat_message(
         raise HTTPException(status_code=500, detail="서버 오류가 발생했습니다.")
 
 # 건축물 정보 조회
-@router.get("/{session_id}/heritage/buildings/{building_id}/info", response_model=HeritageBuildingInfoResponse)
+@router.get("/{session_id}/heritage/buildings/{building_id}/info", response_model=BuildingInfoButtonResponse)
 async def get_heritage_building_info(
     session_id: int,
     building_id: int,
     content: str = Query(..., description="문화재에 대한 챗봇의 정보 조회"),
-    heritage_service: HeritageService = Depends(get_heritage_service)
+    db: AsyncSession = Depends(get_db)
 ):
+    chat_service = ChatService(db)
     try:
-        image_url, bot_response = await heritage_service.get_heritage_building_info(session_id, building_id, content)
-        return HeritageBuildingInfoResponse(
+        image_url, bot_response = await chat_service.update_info_conversation(session_id, building_id, content)
+        return BuildingInfoButtonResponse(
             image_url=image_url or "",
-            # bot_response=ChatInfoResponse(content=bot_response) if bot_response else None
             bot_response=bot_response or ""
         )
-    except ValueError as e:
-        logger.warning(f"건축물 정보 제공 API Value 값 에러: {str(e)}")
+    except SessionNotFoundException as e:
         raise HTTPException(status_code=404, detail=str(e))
-    except SQLAlchemyError as e:
-        logger.error(f"건축물 정보 제공 API 데이터베이스: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail="데이터베이스 오류가 발생했습니다.")
+    except BuildingNotFoundException as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except InvalidAssociationException as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error(f"건축물 정보 제공 API 서버 에러: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail="서버 오류가 발생했습니다.")
 
 # 건축물 퀴즈 제공
-@router.get("/{session_id}/heritage/buildings/{building_id}/quiz", response_model=HeritageBuildingQuizResponse)
+@router.get("/{session_id}/heritage/buildings/{building_id}/quiz", response_model=QuizInfoButtonResponseTest)
 async def get_heritage_building_quiz(
     session_id: int,
     building_id: int,
-    heritage_service: HeritageService = Depends(get_heritage_service)
+    db: AsyncSession = Depends(get_db)
 ):
+    chat_service = ChatService(db)
     try:
-        quiz_data = await heritage_service.get_heritage_building_quiz(session_id, building_id)
-        return await HeritageBuildingQuizResponse(**quiz_data)
+        quiz_data = await chat_service.update_quiz_conversation(session_id, building_id)
+
+        # return await QuizInfoButtonResponseTest(**quiz_data)
+        return quiz_data
 
     except ValueError as e:
         logger.warning(f"퀴즈 정보 제공 API Value 값 에러: {str(e)}")
