@@ -12,7 +12,12 @@ from app.repository.heritage_repository import HeritageRepository
 from app.service.clova_service import ClovaService
 from app.repository.chat_repository import ChatRepository
 from app.repository.user_repository import UserRepository
-from app.schemas.chat import ChatSessionResponse, ChatMessageResponse, ChatSessionEndResponse
+from app.schemas.chat import (
+    ChatSessionResponse, 
+    ChatMessageResponse, 
+    ChatSessionEndResponse, 
+    VisitedBuilding
+)
 from app.service.validation_service import ValidationService
 from app.utils.common import parse_quiz_content
 
@@ -62,17 +67,10 @@ class ChatService:
             # 세션을 찾지 못했거나 이미 종료된 경우
             if ended_session is None:
                 raise HTTPException(status_code=404, detail="활성화 된 세션을 찾을 수 없음")
-            
-            # TODO: 채팅 요약 서비스 추가 별도 메소드로 할지 요약 API와 같이 처리할지 논의 필요
 
             return ChatSessionEndResponse (
-                id = ended_session.id,
-                user_id = ended_session.user_id,
-                heritage_id=ended_session.heritage_id,
-                start_time=ended_session.start_time,
-                end_time=ended_session.end_time,
-                created_at=ended_session.created_at,
-                updated_at=ended_session.updated_at
+                session_id=ended_session.id,
+                end_time=ended_session.end_time
             )
                 
         except SQLAlchemyError as e:
@@ -215,9 +213,53 @@ class ChatService:
         # 퀴즈 데이터 파싱
         # parsed_quiz = parse_quiz_content(quiz_response)
 
+        # TODO : 파싱된 데이터 따로 전체 컬럼에 저장 로직 고민해보기
+
         return {"quiz_content": quiz_response}
 
 
-    # # 채팅 요약 메서드
-    # async def update_summary_conversation(self, session_id: int, content: str):
-    #     return await self.update_conversation(session_id, content, self.clova_service.get_summary)
+    # 채팅 요약 메서드
+    async def update_summary_conversation(self, session_id: int):
+        chat_session = await self.chat_repository.get_chat_session(session_id)
+        if not chat_session:
+            raise ValueError("채팅 세션을 찾을 수 없습니다.")
+        
+        summary = await self.chat_repository.get_chat_summary(session_id)
+        if summary:
+            # building_course 문자열 리스트로 변환
+            building_course = [building['name'] for building in summary['building_course'] if building['visited']]
+            return {
+                'chat_date': summary['chat_date'],
+                'heritage_name': summary['heritage_name'],
+                'building_course': building_course,
+                'keywords': summary['keywords']
+            }
+        
+        return None
+    
+    # 백그라운드 요약 작업
+    async def generated_and_save_chat_summary(self, session_id: int, visited_buildings: List[VisitedBuilding]):
+        try:
+            # 방문한 건물 이름 리스트 생성
+            visited_building_names = [building.name for building in visited_buildings if building.visited]
+
+            # 방문 코스 문자열 변환
+            visited_course = "->".join(visited_building_names)
+
+            # Clova 서비스로 키워드 생성
+            summary_response = await self.clova_service.get_summary(session_id, visited_course)
+
+            # 생성된 키워드 DB 저장
+            await self.chat_repository.save_chat_summary(
+                session_id, 
+                summary_response["keywords"],
+                visited_buildings
+            )
+            
+        except ValueError as e:
+            # Clova 서비스에서 발생한 예외 처리
+            logger.error(f"Clova 서비스 에러: {str(e)}")
+            raise
+        except Exception as e:
+            logger.error(f"채팅 요약 도중 예상치 못한 에러 발생: {str(e)}")
+            raise ValueError(f"채팅 요약 실패: {str(e)}") from e
