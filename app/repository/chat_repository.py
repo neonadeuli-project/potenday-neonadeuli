@@ -1,19 +1,21 @@
 import logging
-from typing import Optional
+from typing import List, Optional
+from datetime import datetime
 
 from fastapi import logger
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import update, values, desc
 from sqlalchemy.future import select
 from sqlalchemy.exc import SQLAlchemyError
-from datetime import datetime
 from sqlalchemy.sql import func
+from sqlalchemy.orm import joinedload
 
 from app.models.chat.chat_session import ChatSession
 from app.models.chat.chat_message import ChatMessage
 from app.models.enums import RoleType
 from app.models.user import User
 from app.models.heritage.heritage import Heritage
+from app.schemas.chat import VisitedBuilding
 
 logger = logging.getLogger(__name__)
 
@@ -157,4 +159,35 @@ class ChatRepository:
         result = await self.db.execute(select(ChatSession)
                                        .where(ChatSession.id == session_id))
         return result.scalar_one_or_none()
+    
+    # 채팅 요약 정보 조회
+    async def get_chat_summary(self, session_id: int):
+        result = await self.db.execute(select(ChatSession)
+                                       .options(joinedload(ChatSession.heritages))
+                                       .where(ChatSession.id == session_id)
+                                    )
+        chat_session = result.scalar_one_or_none()
+
+        if chat_session and chat_session.summary_keywords and chat_session.visited_buildings:
+            return {
+                "chat_date": chat_session.start_time,
+                "heritage_name": chat_session.heritages.name,
+                "building_course": chat_session.visited_buildings,
+                "keywords": chat_session.summary_keywords
+            }
+        
+        return None
+    
+    # 채팅 요약 정보 저장
+    async def save_chat_summary(self, session_id: int, keywords: List[str], visited_buildings: List[VisitedBuilding]):
+        await self.db.execute(update(ChatSession)
+                              .where(ChatSession.id == session_id)
+                              .values(
+                                  summary_keywords=keywords,
+                                  visited_buildings=[building.model_dump() for building in visited_buildings],
+                                  summary_generated_at=func.now()
+                                )
+                            )
+        await self.db.commit()
+        
     
