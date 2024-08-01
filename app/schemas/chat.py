@@ -34,10 +34,20 @@ class ChatMessageResponse(BaseModel):
     
 # 채팅 세션 종료 응답 값
 class ChatSessionEndResponse(BaseModel):
-    id: int
-    user_id: int
-    heritage_id: int
-    start_time: datetime
+    session_id: int
     end_time: datetime
-    created_at: datetime
-    updated_at: datetime
+
+# 채팅 요약에 사용자 방문 코스 요청 값
+class VisitedBuilding(BaseModel):
+    name: str
+    visited: bool
+
+class VisitedBuildingList(BaseModel):
+    buildings: List[VisitedBuilding]
+
+# 채팅 요약 응답 값
+class ChatSummaryResponse(BaseModel):
+    chat_date: datetime
+    heritage_name: str
+    building_course: List[str]
+    keywords: List[str]
