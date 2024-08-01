@@ -13,6 +13,8 @@ from app.service.clova_service import ClovaService
 from app.repository.chat_repository import ChatRepository
 from app.repository.user_repository import UserRepository
 from app.schemas.chat import ChatSessionResponse, ChatMessageResponse, ChatSessionEndResponse
+from app.service.validation_service import ValidationService
+from app.utils.common import parse_quiz_content
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +25,9 @@ class ChatService:
         self.user_repository = UserRepository(db)
         self.chat_repository = ChatRepository(db)
         self.heritage_repository = HeritageRepository(db)
+        self.validation_service = ValidationService(db)
         self.clova_service = ClovaService()
+        self.current_sliding_window = None
     
     # 채팅 세션 생성하기
     async def create_chat_session(self, user_id: int, heritage_id: int):
@@ -78,41 +82,68 @@ class ChatService:
          
     # 채팅 대화 내용 업데이트
     async def update_conversation(self, session_id: int, content: str, clova_method: Callable):
-        # 기존 대화 내용 가져오기
-        chat_session = await self.chat_repository.get_chat_session(session_id)
-        full_conversation = json.loads(chat_session.full_conversation) if chat_session.full_conversation else []
-        sliding_window = json.loads(chat_session.sliding_window) if chat_session.sliding_window else []
+        try:
+            
+            # 기존 대화 내용 가져오기
+            chat_session = await self.chat_repository.get_chat_session(session_id)
+            full_conversation = json.loads(chat_session.full_conversation) if chat_session.full_conversation else []
+            self.current_sliding_window = json.loads(chat_session.sliding_window) if chat_session.sliding_window else []
 
-        logger.debug(f"Current sliding window: {sliding_window}")
-        
-        # User 메시지 저장
-        await self.update_conversation_content(session_id, RoleType.USER, content, full_conversation, sliding_window)
-        
-        # Clova API 호출
-        clova_responses = await self.get_clova_response(clova_method, session_id, sliding_window)
-        bot_response = clova_responses["response"]
-        new_sliding_window = clova_responses["new_sliding_window"]
+            logger.debug(f"Current sliding window: {self.current_sliding_window}")
+            
+            # User 메시지 저장
+            await self.update_conversation_content(session_id, RoleType.USER, content, full_conversation, self.current_sliding_window)
+            
+            # Clova API 호출
+            clova_responses = await self.get_clova_response(clova_method, session_id, self.current_sliding_window)
 
-        # Clova 메시지 저장
-        await self.update_conversation_content(session_id, RoleType.ASSISTANT, bot_response, full_conversation, sliding_window)
+            bot_response = clova_responses["response"]
+            # new_sliding_window = clova_responses["new_sliding_window"]
+            new_sliding_window = clova_responses.get("new_sliding_window", self.current_sliding_window)
 
-        # 업데이트 된 대화 내용 저장
-        await self.save_conversation(session_id, full_conversation, new_sliding_window)
+            # Clova 메시지 저장
+            await self.update_conversation_content(session_id, RoleType.ASSISTANT, bot_response, full_conversation, new_sliding_window)
 
-        return bot_response
+            # 업데이트 된 대화 내용 저장
+            await self.save_conversation(session_id, full_conversation, new_sliding_window)
+
+            return bot_response
+        except Exception as e:
+            logger.error(f"챗봇 대화 업데이트 에러 : {str(e)}")
+            raise
     
     # 대화 내용 업데이트
     async def update_conversation_content(self, session_id: int, role: RoleType, content: str, full_conversation: list, sliding_window: list):
         content_str = json.dumps(content, ensure_ascii=False) if isinstance(content, dict) else content
+
         message = await self.chat_repository.create_message(session_id, role, content_str)
+
         full_conversation.append({"role": role.value, "content": content_str})
-        sliding_window.append({"role": role.value, "content": content_str})
+        if sliding_window is not None:
+            sliding_window.append({"role": role.value, "content": content_str})
+
         return message
     
     # Clova 응답 조회
-    async def get_clova_response(self, clova_method: Callable, session_id: int, sliding_window: list, *args, **kwargs) -> str:
+    async def get_clova_response(self, clova_method: Callable, session_id: int, sliding_window: list, *args, **kwargs) -> dict:
+        logger.info(f"Getting Clova response for session {session_id} with method: {clova_method.__name__}")
+        logger.info(f"Sliding window content: {sliding_window}")
+
+        if sliding_window is None:
+            sliding_window = []
+
         response = await clova_method(session_id, sliding_window)
-        return response
+        
+        # if clova_method.__name__ == 'get_quiz':
+        #     return {
+        #         "response": response,
+        #         "new_sliding_window": sliding_window
+        #     }
+        # return response
+        if isinstance(response, dict) and "response" in response:
+            return response
+        else:
+            return {"response": response, "new_sliding_window": sliding_window}
     
     # 업데이트 된 대화 내용 저장
     async def save_conversation(self, session_id: int, full_conversation: list, sliding_window: list):
@@ -122,7 +153,7 @@ class ChatService:
             sliding_window=json.dumps(sliding_window, ensure_ascii=False)
         )
 
-    # 채팅 메시지 메서드
+    # 채팅 메시지 제공
     async def update_chat_conversation(self, session_id: int, content: str) -> ChatMessageResponse:
         # 사용자 메시지 저장 및 Clova 응답 받기
         bot_response =  await self.update_conversation(session_id, content, self.clova_service.get_chatting)
@@ -142,42 +173,50 @@ class ChatService:
             timestamp=bot_message.timestamp
         )
     
-    # 퀴즈 제공 메서드
-    async def update_quiz_conversation(self, session_id: int, building_id: int) -> Dict[str, Any]:
-        building = await self.heritage_repository.get_heritage_building_by_id(building_id)
-        if not building:
-            raise ValueError(f"Building with id {building_id} not found")
+    # 문화재 건축물 정보 제공 
+    async def update_info_conversation(self, session_id: int, building_id: int, content: str = None):
+        # 세션 및 유효성 검사
+        await self.validation_service.validate_session_and_building(session_id, building_id) 
 
-        quiz_response = await self.clova_service.get_quiz(session_id, building.name)
-        quiz_text = quiz_response["quiz_text"]
-        options = quiz_response["options"]
-        new_sliding_window = quiz_response["new_sliding_window"]
+        # 해당 건축물의 이미지 1개 조회
+        image_urls = await self.heritage_repository.get_heritage_building_images(building_id) 
+        image_url = image_urls[0].image_url if image_urls else None
 
-        # 기존 대화 내용 가져오기
-        chat_session = await self.chat_repository.get_chat_session(session_id)
-        full_conversation = json.loads(chat_session.full_conversation) if chat_session.full_conversation else []
-        sliding_window = json.loads(chat_session.sliding_window) if chat_session.sliding_window else []
+        # Clova 챗봇 응답 조회
+        bot_response = None
+        if content:
+            chat_session = await self.chat_repository.get_chat_session(session_id)
+            sliding_window = json.loads(chat_session.sliding_window) if chat_session.sliding_window else []
+            bot_response = await self.update_conversation(session_id, content, self.clova_service.get_chatting)
         
-        # 퀴즈 내용을 채팅 세션에 저장
-        await self.update_conversation_content(session_id, "assistant", quiz_text, full_conversation, sliding_window)
+        if bot_response is None:
+            raise ValueError("대화 업데이트 이후 건축물 정보 메시지를 찾을 수 없습니다.")
 
-        # 업데이트 된 대화 내용 저장
-        await self.save_conversation(session_id, full_conversation, new_sliding_window)
-
-        return {
-            "quiz_text": quiz_text,
-            "options": options,
-        }
+        return image_url, bot_response   
     
-    def parse_quiz_response(self, response: str) -> Dict[str, Any]:
-        lines = response.split("\n")
-        quiz_text = lines[0]
-        options = lines[1:6]  # Assuming the options are on lines 1 to 5
+    # 문화재 건축물 퀴즈 제공 
+    # async def update_quiz_conversation(self, session_id: int, building_id: int) -> Dict[str, Any]:
+    async def update_quiz_conversation(self, session_id: int, building_id: int = None):
+        await self.validation_service.validate_session_and_building(session_id, building_id)
+        building_name = await self.heritage_repository.get_heritage_building_name_by_id(building_id)
+        logger.info(f"Retrieved building name for building_id {building_id}: {building_name}")
+        
+        if not building_name:
+            raise ValueError(f"건축물 ID {building_id} 에 해당하는 건축물 이름을 찾을 수 없습니다.")
+        
+        # Clova 챗봇 응답 조회
+        quiz_response = None
+        if building_name:
+            quiz_response = await self.update_conversation(session_id, building_name, self.clova_service.get_quiz)
 
-        return {
-            "quiz_text": quiz_text,
-            "options": options,
-        }
+        if quiz_response is None:
+            raise ValueError("대화 업데이트 이후 퀴즈 메시지를 찾을 수 없습니다.")
+        
+        # 퀴즈 데이터 파싱
+        # parsed_quiz = parse_quiz_content(quiz_response)
+
+        return {"quiz_content": quiz_response}
+
 
     # # 채팅 요약 메서드
     # async def update_summary_conversation(self, session_id: int, content: str):
