@@ -1,3 +1,4 @@
+from typing import Any, Dict
 from app.repository.chat_repository import ChatRepository
 from app.repository.heritage_repository import HeritageRepository
 from app.error.heritage_exceptions import SessionNotFoundException, BuildingNotFoundException, InvalidAssociationException
@@ -20,4 +21,13 @@ class ValidationService:
         if building.heritage_id != chat_session.heritage_id:
             raise InvalidAssociationException(session_id, building_id)
 
-        return building
+        return chat_session, building
+    
+    async def is_valid_quiz(self, parsed_quiz: Dict[str, Any]) -> bool:
+        return (
+            parsed_quiz['question'] and
+            len(parsed_quiz['options']) >= 2 and
+            parsed_quiz['answer'] and
+            parsed_quiz['answer'].isdigit() and
+            parsed_quiz['explanation']
+        )

@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 
@@ -7,9 +8,11 @@ from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import SQLAlchemyError
 
+from app.core.config import settings
 from app.models.enums import RoleType
-from app.repository.heritage_repository import HeritageRepository
 from app.service.clova_service import ClovaService
+from app.service.validation_service import ValidationService
+from app.repository.heritage_repository import HeritageRepository
 from app.repository.chat_repository import ChatRepository
 from app.repository.user_repository import UserRepository
 from app.schemas.chat import (
@@ -18,7 +21,7 @@ from app.schemas.chat import (
     ChatSessionEndResponse, 
     VisitedBuilding
 )
-from app.service.validation_service import ValidationService
+
 from app.utils.common import parse_quiz_content
 
 logger = logging.getLogger(__name__)
@@ -95,8 +98,7 @@ class ChatService:
             # Clova API 호출
             clova_responses = await self.get_clova_response(clova_method, session_id, self.current_sliding_window)
 
-            bot_response = clova_responses["response"]
-            # new_sliding_window = clova_responses["new_sliding_window"]
+            bot_response = clova_responses.get("response", clova_responses)
             new_sliding_window = clova_responses.get("new_sliding_window", self.current_sliding_window)
 
             # Clova 메시지 저장
@@ -124,24 +126,17 @@ class ChatService:
     
     # Clova 응답 조회
     async def get_clova_response(self, clova_method: Callable, session_id: int, sliding_window: list, *args, **kwargs) -> dict:
-        logger.info(f"Getting Clova response for session {session_id} with method: {clova_method.__name__}")
-        logger.info(f"Sliding window content: {sliding_window}")
+        logger.info(f"메서드를 사용하여 {session_id} 세션에 대한 Clova 응답 얻기: {clova_method.__name__}")
+        logger.info(f"Sliding window 내용: {sliding_window}")
 
-        if sliding_window is None:
-            sliding_window = []
-
-        response = await clova_method(session_id, sliding_window)
-        
-        # if clova_method.__name__ == 'get_quiz':
-        #     return {
-        #         "response": response,
-        #         "new_sliding_window": sliding_window
-        #     }
-        # return response
-        if isinstance(response, dict) and "response" in response:
-            return response
+        if asyncio.iscoroutinefunction(clova_method):
+            response = await clova_method(session_id, sliding_window)
         else:
+            response = clova_method(session_id, sliding_window)
+
+        if isinstance(response, str):
             return {"response": response, "new_sliding_window": sliding_window}
+        return response
     
     # 업데이트 된 대화 내용 저장
     async def save_conversation(self, session_id: int, full_conversation: list, sliding_window: list):
@@ -190,32 +185,66 @@ class ChatService:
         if bot_response is None:
             raise ValueError("대화 업데이트 이후 건축물 정보 메시지를 찾을 수 없습니다.")
 
-        return image_url, bot_response   
+        return image_url, bot_response
+    
+    # 퀴즈 재응답 요청
+    async def get_quiz_with_retry(self, session_id: int, building_name: str) -> Dict[str, Any]:
+        for attempt in range(settings.MAX_RETRIES):
+            try:
+                quiz_response = await self.clova_service.get_quiz(session_id, building_name)
+                parsed_quiz = parse_quiz_content(quiz_response)
+
+                if self.validation_service.is_valid_quiz(parsed_quiz):
+                    return parsed_quiz
+                
+                logger.warning(f"{attempt + 1} 번 시도에서 잘못된 퀴즈가 생성되었습니다. 시도 중...")
+            except Exception as e:
+                logger.error(f"{attempt + 1} 번째 시도에 생성된 퀴즈에서 발생한 에러: {str(e)}")
+
+            if attempt < settings.MAX_RETRIES - 1:
+                await asyncio.sleep(settings.RETRY_DELAY)
+
+        raise ValueError("여러 번 시도해보았지만 유효한 퀴즈를 생성하지 못했습니다.")
     
     # 문화재 건축물 퀴즈 제공 
-    # async def update_quiz_conversation(self, session_id: int, building_id: int) -> Dict[str, Any]:
-    async def update_quiz_conversation(self, session_id: int, building_id: int = None):
-        await self.validation_service.validate_session_and_building(session_id, building_id)
+    async def update_quiz_conversation(self, session_id: int, building_id: int) -> Dict[str, Any]:
+        chat_session, building = await self.validation_service.validate_session_and_building(session_id, building_id)
+
+        if chat_session.quiz_count <= 0:
+            raise ValueError("퀴즈를 더이상 사용하실 수 없습니다.")
+        
+        # 퀴즈 카운트
+        chat_session.quiz_count -= 1
+        self.db.add(chat_session)
+        await self.db.commit()
+
         building_name = await self.heritage_repository.get_heritage_building_name_by_id(building_id)
         logger.info(f"Retrieved building name for building_id {building_id}: {building_name}")
         
         if not building_name:
             raise ValueError(f"건축물 ID {building_id} 에 해당하는 건축물 이름을 찾을 수 없습니다.")
         
-        # Clova 챗봇 응답 조회
-        quiz_response = None
-        if building_name:
-            quiz_response = await self.update_conversation(session_id, building_name, self.clova_service.get_quiz)
-
-        if quiz_response is None:
-            raise ValueError("대화 업데이트 이후 퀴즈 메시지를 찾을 수 없습니다.")
-        
         # 퀴즈 데이터 파싱
-        # parsed_quiz = parse_quiz_content(quiz_response)
+        parsed_quiz = await self.get_quiz_with_retry(session_id, building_name)
 
-        # TODO : 파싱된 데이터 따로 전체 컬럼에 저장 로직 고민해보기
+        # 퀴즈 데이터 저장
+        saved_quiz = await self.heritage_repository.save_quiz_data(session_id, parsed_quiz)
 
-        return {"quiz_content": quiz_response}
+        # full_conversation 퀴즈 참조 추가
+        # quiz_reference = {'question': saved_quiz.question, 'options': saved_quiz.options, 'answer': saved_quiz.answer, 'explanation': saved_quiz.explanation}
+
+        # async def quiz_reference_method(s, w):
+        #     return quiz_reference
+
+        # await self.update_conversation(session_id, building_name, quiz_reference_method)
+
+        return {
+            'question': saved_quiz.question,
+            'options': json.loads(saved_quiz.options),
+            'answer': saved_quiz.answer,
+            'explanation': saved_quiz.explanation,
+            'quiz_count': chat_session.quiz_count
+        }
 
 
     # 채팅 요약 메서드

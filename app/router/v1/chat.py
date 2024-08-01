@@ -116,7 +116,7 @@ async def get_heritage_building_info(
         raise HTTPException(status_code=500, detail="서버 오류가 발생했습니다.")
 
 # 건축물 퀴즈 제공
-@router.get("/{session_id}/heritage/buildings/{building_id}/quiz", response_model=QuizInfoButtonResponseTest)
+@router.get("/{session_id}/heritage/buildings/{building_id}/quiz", response_model=QuizInfoButtonResponse)
 async def get_heritage_building_quiz(
     session_id: int,
     building_id: int,
@@ -126,8 +126,7 @@ async def get_heritage_building_quiz(
     try:
         quiz_data = await chat_service.update_quiz_conversation(session_id, building_id)
 
-        # return await QuizInfoButtonResponseTest(**quiz_data)
-        return quiz_data
+        return QuizInfoButtonResponse(**quiz_data)
 
     except ValueError as e:
         logger.warning(f"퀴즈 정보 제공 API Value 값 에러: {str(e)}")
