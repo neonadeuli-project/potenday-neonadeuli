@@ -240,7 +240,7 @@ class ChatService:
 
         return {
             'question': saved_quiz.question,
-            'options': json.loads(saved_quiz.options),
+            'options': json.loads(saved_quiz.options) if isinstance(saved_quiz.options, str) else saved_quiz.options,
             'answer': saved_quiz.answer,
             'explanation': saved_quiz.explanation,
             'quiz_count': chat_session.quiz_count

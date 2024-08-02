@@ -90,7 +90,7 @@ class HeritageRepository:
         quiz = Quiz(
             session_id = session_id,
             question=parsed_quiz['question'],
-            options=json.dumps(parsed_quiz['options']),
+            options=json.dumps(parsed_quiz['options'], ensure_ascii=False),
             answer=parsed_quiz['answer'],
             explanation=parsed_quiz['explanation']
         )
