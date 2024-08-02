@@ -2,6 +2,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from datetime import datetime
 
+from app.error.auth_exception import UserNotFoundException
 from app.models.user import User
 
 class UserRepository:
@@ -22,7 +23,6 @@ class UserRepository:
         return new_user
 
     async def get_user_by_name(self, name: str) -> User:
-        # return self.db.query(User).filter(User.name == name).first()
         result = await self.db.execute(select(User).where(User.name == name))
         return result.scalars().first()
     
@@ -32,21 +32,24 @@ class UserRepository:
 
     async def get_user_by_token(self, token: str) -> User:
         result = await self.db.execute(select(User).where(User.token == token))
-        return result.scalars().first()
+        user = result.scalars().first()
+        if not user:
+            raise UserNotFoundException(f"토큰: {token}")
+        return user
     
     async def update_user_token(self, user_id: int, token: str) -> User:
         try:
             user = await self.db.get(User, user_id)
-            if user:
-                user.token = token
-                await self.db.commit()
-                await self.db.refresh(user)
-                return user
-            return None
+            if not user:
+                raise UserNotFoundException(f"ID: {user_id}")
+            user.token = token
+            await self.db.commit()
+            await self.db.refresh(user)
+            return user
         except Exception as e:
             await self.db.rollback()
-            print(f"Error updating user token: {e}")
-            return None
+            print(f"유저 토큰 업데이트 에러: {e}")
+            raise
     
     async def update_user(self, user: User) -> User:
         try:
