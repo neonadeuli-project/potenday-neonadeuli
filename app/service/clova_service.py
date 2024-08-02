@@ -9,6 +9,7 @@ from http import HTTPStatus
 import requests
 
 from app.core.config import settings
+from app.error.chat_exception import APICallException, ChatServiceException
 from app.utils.common import parse_quiz_content
 
 
@@ -227,10 +228,12 @@ class ClovaService:
             new_sliding_window = self.manage_sliding_window_size(adjusted_sliding_window)
 
             return {"response": response_text, "new_sliding_window": new_sliding_window }
-        
+        except APICallException as e:
+            logger.error(f"채팅 요청 처리 중 API 오류 발생: {e.api_name}, 상태 코드: {e.status_code}, 오류 메시지: {e.error_message}")
+            raise ChatServiceException(f"채팅 요청 처리 중 API 오류 발생: {e.api_name}")
         except Exception as e:
-            logger.error(f"Error in get_chating: {str(e)}")
-            raise ValueError("Failed to process chat request") from e
+            logger.error(f"채팅 요청 처리 중 예상치 못한 오류 발생: {str(e)}")
+            raise ChatServiceException("채팅 요청 처리 중 오류 발생")
         
     def manage_sliding_window_size(self, sliding_window: List[Dict[str, str]]) -> List[Dict[str, str]]:
         max_window_size = settings.MAX_SLIDING_WINDOW_SIZE
@@ -277,9 +280,13 @@ class ClovaService:
             logger.info(f"Parsed response for session ID {session_id}: {response_text}")
 
             return response_text
+        
+        except APICallException as e:
+            logger.error(f"퀴즈 생성 중 API 오류 발생: {e.api_name}, 상태 코드: {e.status_code}, 오류 메시지: {e.error_message}")
+            raise ChatServiceException(f"퀴즈 생성 중 API 오류 발생: {e.api_name}")
         except Exception as e:
-            logger.error(f"Error in get_chating: {str(e)}")
-            raise ValueError("Failed to process chat request") from e
+            logger.error(f"퀴즈 생성 중 예상치 못한 오류 발생: {str(e)}")
+            raise ChatServiceException("퀴즈 생성 중 오류 발생")
 
     # 여기서는 full_conversation에 들어있던 question과 기존 sliding_window, 
     # 선택한 보기가 입력으로 들어와야 합니다. (ex - 1번)
@@ -315,10 +322,15 @@ class ClovaService:
             response = completion_executor.execute(completion_request_data, stream=False)
             response_text = parse_non_stream_response(response)
             new_sliding_window = sliding_window_executor.execute(sliding_window + [{"role":"assistant", "content":response_text}])
+
             return {"response": response_text, "new_sliding_window":new_sliding_window}
+        
+        except APICallException as e:
+            logger.error(f"답변 생성 중 API 오류 발생: {e.api_name}, 상태 코드: {e.status_code}, 오류 메시지: {e.error_message}")
+            raise ChatServiceException(f"답변 생성 중 API 오류 발생: {e.api_name}")
         except Exception as e:
-            logger.error(f"Error in get_chating: {str(e)}")
-            raise ValueError("Failed to process chat request") from e
+            logger.error(f"답변 생성 중 예상치 못한 오류 발생: {str(e)}")
+            raise ChatServiceException("답변 생성 중 오류 발생")
         
     def manage_sliding_window_size(self, sliding_window: List[Dict[str, str]]) -> List[Dict[str, str]]:
         max_window_size = settings.MAX_SLIDING_WINDOW_SIZE
@@ -369,6 +381,10 @@ class ClovaService:
 
             keywords = response_text.split()[1:]    # '너나들이' 키워드 제외
             return {"keywords": keywords}
+        
+        except APICallException as e:
+            logger.error(f"요약 생성 중 API 오류 발생: {e.api_name}, 상태 코드: {e.status_code}, 오류 메시지: {e.error_message}")
+            raise ChatServiceException(f"요약 생성 중 API 오류 발생: {e.api_name}")
         except Exception as e:
-            logger.error(f"Error in get_chatting: {str(e)}")
-            raise ValueError("Failed to process chat request") from e
+            logger.error(f"요약 생성 중 예상치 못한 오류 발생: {str(e)}")
+            raise ChatServiceException("요약 생성 중 오류 발생")
