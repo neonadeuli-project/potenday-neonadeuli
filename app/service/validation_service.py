@@ -1,7 +1,8 @@
 from typing import Any, Dict
+from app.error.chat_exception import SessionNotFoundException
 from app.repository.chat_repository import ChatRepository
 from app.repository.heritage_repository import HeritageRepository
-from app.error.heritage_exceptions import SessionNotFoundException, BuildingNotFoundException, InvalidAssociationException
+from app.error.heritage_exceptions import BuildingNotFoundException, InvalidAssociationException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 class ValidationService:
