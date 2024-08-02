@@ -4,10 +4,10 @@ class HeritageServiceException(Exception):
         self.message = message
         super().__init__(self.message)
 
-class SessionNotFoundException(HeritageServiceException):
-    """채팅 세션을 찾을 수 없을 때 발생하는 예외"""
-    def __init__(self, session_id: int):
-        super().__init__(f"세션 ID {session_id}인 채팅 세션을 찾을 수 없습니다.")
+class HeritageNotFoundException(HeritageServiceException):
+    """문화재를 찾을 수 없을 때 발생하는 예외"""
+    def __init__(self, heritage_id: int):
+        super().__init__(f"문화재 ID {heritage_id}인 채팅 세션을 찾을 수 없습니다.")
 
 class BuildingNotFoundException(HeritageServiceException):
     """건축물을 찾을 수 없을 때 발생하는 예외"""
