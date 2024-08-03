@@ -15,7 +15,11 @@ class HeritageRouteInfo(BaseModel):
     name: str
     buildings: List[HeritageBuildingInfo]
 
-# 건축물 정보 버튼에 제공될 내부 건축물 정보 
+# 건축물 정보 버튼에 제공될 내부 건축물 정보 요청 값
+class BuildingInfoButtonRequest(BaseModel): 
+    building_id: int
+
+# 건축물 정보 버튼에 제공될 내부 건축물 정보 응답 값
 class BuildingInfoButtonResponse(BaseModel):
     image_url: Optional[str] = None
     bot_response: Optional[str] = None

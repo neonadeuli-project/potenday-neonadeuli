@@ -14,6 +14,7 @@ from app.error.chat_exception import (
 from app.service.chat_service import ChatService
 from app.schemas.heritage import (
     BuildingInfoButtonResponse,
+    BuildingInfoButtonRequest,
     QuizInfoButtonResponse
 )    
 from app.schemas.chat import (
@@ -71,17 +72,20 @@ async def add_chat_message(
         logger.error(f"메시지 전송 중 예상치 못한 오류 발생: {str(e)}", exc_info=True)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="서버 오류가 발생했습니다.")
 
-# 건축물 정보 조회
-@router.get("/{session_id}/heritage/buildings/{building_id}/info", response_model=BuildingInfoButtonResponse)
+# 건축물 정보 제공
+@router.post("/{session_id}/heritage/buildings/info", response_model=BuildingInfoButtonResponse)
 async def get_heritage_building_info(
     session_id: int,
-    building_id: int,
-    content: str = Query(..., description="문화재에 대한 챗봇의 정보 조회"),
+    building_data: BuildingInfoButtonRequest,
     db: AsyncSession = Depends(get_db)
 ):
     chat_service = ChatService(db)
     try:
-        image_url, bot_response = await chat_service.update_info_conversation(session_id, building_id, content)
+        image_url, bot_response = await chat_service.update_info_conversation(
+            session_id, 
+            building_data.building_id
+        )
+        
         return BuildingInfoButtonResponse(
             image_url=image_url or "",
             bot_response=bot_response or ""

@@ -7,13 +7,13 @@ from typing import Any, Callable, Dict, List
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.error.chat_exception import ChatServiceException, QuizGenerationException
+from app.error.chat_exception import ChatServiceException, NoQuizAvailableException, QuizGenerationException
 from app.error.heritage_exceptions import (
     BuildingNotFoundException, 
     InvalidAssociationException
 )
 from app.error.chat_exception import SessionNotFoundException
-from app.models.enums import RoleType
+from app.models.enums import ChatbotType, RoleType
 from app.service.clova_service import ClovaService
 from app.service.validation_service import ValidationService
 from app.repository.heritage_repository import HeritageRepository
@@ -192,7 +192,7 @@ class ChatService:
             raise ChatServiceException("채팅 대화 업데이트 실패")
 
     # 문화재 건축물 정보 제공 
-    async def update_info_conversation(self, session_id: int, building_id: int, content: str = None):
+    async def update_info_conversation(self, session_id: int, building_id: int):
         try:
             # 세션 및 유효성 검사
             await self.validation_service.validate_session_and_building(session_id, building_id) 
@@ -201,12 +201,12 @@ class ChatService:
             image_urls = await self.heritage_repository.get_heritage_building_images(building_id) 
             image_url = image_urls[0].image_url if image_urls else None
 
-            # Clova 챗봇 응답 조회
-            bot_response = None
-            if content:
-                chat_session = await self.chat_repository.get_chat_session(session_id)
-                sliding_window = json.loads(chat_session.sliding_window) if chat_session.sliding_window else []
-                bot_response = await self.update_conversation(session_id, content, self.clova_service.get_chatting)
+            # 해당 건축물의 이름 조회
+            building_name = await self.heritage_repository.get_heritage_building_name_by_id(building_id)
+            if not building_name:
+                raise BuildingNotFoundException(f"건축물 ID {building_id}에 해당하는 건축물 이름을 찾을 수 없습니다.")
+
+            bot_response = await self.clova_service.get_info_or_quiz(session_id, building_name, ChatbotType.INFO)
             
             if bot_response is None:
                 raise ChatServiceException("대화 업데이트 이후 건축물 정보 메시지를 찾을 수 없습니다.")
@@ -223,7 +223,7 @@ class ChatService:
     async def get_quiz_with_retry(self, session_id: int, building_name: str) -> Dict[str, Any]:
         for attempt in range(settings.MAX_RETRIES):
             try:
-                quiz_response = await self.clova_service.get_quiz(session_id, building_name)
+                quiz_response = await self.clova_service.get_info_or_quiz(session_id, building_name, ChatbotType.QUIZ)
                 parsed_quiz = parse_quiz_content(quiz_response)
 
                 if self.validation_service.is_valid_quiz(parsed_quiz):
@@ -244,7 +244,7 @@ class ChatService:
             chat_session, building = await self.validation_service.validate_session_and_building(session_id, building_id)
 
             if chat_session.quiz_count <= 0:
-                raise ValueError("퀴즈를 더이상 사용하실 수 없습니다.")
+                raise NoQuizAvailableException("퀴즈를 더이상 사용하실 수 없습니다.")
             
             # 퀴즈 카운트
             chat_session.quiz_count -= 1
