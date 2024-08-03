@@ -1,9 +1,12 @@
+import logging
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from datetime import datetime
 
-from app.error.auth_exception import UserNotFoundException
+from app.error.auth_exception import DatabaseOperationException, InvalidTokenException, UserNotFoundException
 from app.models.user import User
+
+logger = logging.getLogger(__name__)
 
 class UserRepository:
     def __init__(self, db: AsyncSession):
@@ -32,9 +35,9 @@ class UserRepository:
 
     async def get_user_by_token(self, token: str) -> User:
         result = await self.db.execute(select(User).where(User.token == token))
-        user = result.scalars().first()
+        user = result.scalar_one_or_none()
         if not user:
-            raise UserNotFoundException(f"토큰: {token}")
+            raise InvalidTokenException(token)
         return user
     
     async def update_user_token(self, user_id: int, token: str) -> User:
@@ -48,8 +51,8 @@ class UserRepository:
             return user
         except Exception as e:
             await self.db.rollback()
-            print(f"유저 토큰 업데이트 에러: {e}")
-            raise
+            logger.error(f"토큰 업데이트 중 오류 발생: {str(e)}")
+            raise DatabaseOperationException("토큰 업데이트")
     
     async def update_user(self, user: User) -> User:
         try:
@@ -58,5 +61,5 @@ class UserRepository:
             return user
         except Exception as e:
             await self.db.rollback()
-            print(f"Error updating user: {e}")
+            logger.error(f"유저 업데이트 중 오류 발생: {str(e)}")
             return None

@@ -11,8 +11,11 @@ class UserNotFoundException(AuthServiceException):
 
 class InvalidTokenException(AuthServiceException):
     """토큰이 유효하지 않을 때 발생하는 예외"""
-    def __init__(self):
-        super().__init__("유효하지 않은 토큰입니다.")
+    def __init__(self, token: str = ""):
+        message = "유효하지 않은 토큰입니다."
+        if token:
+            message += f" 토큰: {token}"
+        super().__init__(message)
 
 class UserCreationException(AuthServiceException):
     """사용자 생성 중 오류가 발생했을 때 발생하는 예외"""

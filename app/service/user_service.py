@@ -69,14 +69,15 @@ class UserService:
         try:
             user = await self.user_repository.get_user_by_token(token)
             if not user:
-                raise InvalidTokenException()
+                raise InvalidTokenException(token)
             
             success = await self.user_repository.update_user_token(user.id, None)
             if not success:
                 raise DatabaseOperationException("토큰 업데이트 실패")
             
             return True
-        except InvalidTokenException:
+        except InvalidTokenException as e:
+            logger.warning(f"유효하지 않은 토큰: {str(e)}")
             raise
         except DatabaseOperationException as e:
             logger.error(f"데이터베이스 오류: {str(e)}")

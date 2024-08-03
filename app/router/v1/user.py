@@ -82,9 +82,11 @@ async def logout(token: str = Depends(get_token), db: AsyncSession = Depends(get
             return UserLogoutResponse(message="로그아웃 성공",success=True)
         else:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="로그아웃 실패")
-    except InvalidTokenException:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="유효하지 않은 토큰", headers={"WWW-Authenticate" : "Bearer"})
+    except InvalidTokenException as e:
+        logger.warning(f"로그아웃 시도 중 유효하지 않은 토큰: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e), headers={"WWW-Authenticate" : "Bearer"})
     except AuthServiceException as e:
+        logger.error(f"로그아웃 중 서비스 오류: {str(e)}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
     except Exception as e:
         logger.error(f"로그아웃 중 예상치 못한 오류 발생: {str(e)}")
