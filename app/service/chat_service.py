@@ -245,20 +245,19 @@ class ChatService:
 
             if chat_session.quiz_count <= 0:
                 raise NoQuizAvailableException("퀴즈를 더이상 사용하실 수 없습니다.")
-            
-            # 퀴즈 카운트
-            chat_session.quiz_count -= 1
-            self.db.add(chat_session)
-            await self.db.commit()
 
+            # 해당 건축물의 이름 조회
             building_name = await self.heritage_repository.get_heritage_building_name_by_id(building_id)
-            logger.info(f"Retrieved building name for building_id {building_id}: {building_name}")
-            
             if not building_name:
                 raise BuildingNotFoundException(f"건축물 ID {building_id} 에 해당하는 건축물 이름을 찾을 수 없습니다.")
             
             # 퀴즈 데이터 파싱
             parsed_quiz = await self.get_quiz_with_retry(session_id, building_name)
+
+            # 퀴즈 카운트
+            chat_session.quiz_count -= 1
+            self.db.add(chat_session)
+            await self.db.commit()
 
             # 퀴즈 데이터 저장
             saved_quiz = await self.heritage_repository.save_quiz_data(session_id, parsed_quiz)
