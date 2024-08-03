@@ -7,3 +7,7 @@ class RoleType(Enum):
 class RouteType(Enum):
     RECOMMENDED = "recommended"
     CUSTOM = "custom"
+
+class ChatbotType(Enum):
+    INFO = "info"
+    QUIZ = "quiz"
