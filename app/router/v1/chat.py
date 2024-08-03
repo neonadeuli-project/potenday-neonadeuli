@@ -15,7 +15,8 @@ from app.service.chat_service import ChatService
 from app.schemas.heritage import (
     BuildingInfoButtonResponse,
     BuildingInfoButtonRequest,
-    QuizInfoButtonResponse
+    BuildingQuizButtonResponse,
+    BuildingQuizButtonRequest
 )    
 from app.schemas.chat import (
     ChatSessionResponse, 
@@ -99,17 +100,20 @@ async def get_heritage_building_info(
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="서버 오류가 발생했습니다.")
 
 # 건축물 퀴즈 제공
-@router.get("/{session_id}/heritage/buildings/{building_id}/quiz", response_model=QuizInfoButtonResponse)
+@router.post("/{session_id}/heritage/buildings/quiz", response_model=BuildingQuizButtonResponse)
 async def get_heritage_building_quiz(
     session_id: int,
-    building_id: int,
+    building_data: BuildingQuizButtonRequest,
     db: AsyncSession = Depends(get_db)
 ):
     chat_service = ChatService(db)
     try:
-        quiz_data = await chat_service.update_quiz_conversation(session_id, building_id)
+        quiz_data = await chat_service.update_quiz_conversation(
+            session_id, 
+            building_data.building_id
+        )
 
-        return QuizInfoButtonResponse(**quiz_data)
+        return BuildingQuizButtonResponse(**quiz_data)
 
     except (SessionNotFoundException, BuildingNotFoundException, InvalidAssociationException) as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))

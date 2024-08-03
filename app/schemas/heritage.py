@@ -24,14 +24,14 @@ class BuildingInfoButtonResponse(BaseModel):
     image_url: Optional[str] = None
     bot_response: Optional[str] = None
 
-# 퀴즈 버튼에 제공될 퀴즈 정보
-class QuizInfoButtonResponse(BaseModel):
+# 퀴즈 버튼에 제공될 퀴즈 정보 요청 값
+class BuildingQuizButtonRequest(BaseModel):
+    building_id: int
+
+# 퀴즈 버튼에 제공될 퀴즈 정보 응답 값
+class BuildingQuizButtonResponse(BaseModel):
     question: str
     options: List[str]
     answer: int
     explanation: str
     quiz_count : int
-
-# 퀴즈 버튼에 제공될 퀴즈 정보
-class QuizInfoButtonResponseTest(BaseModel):
-    quiz_content: str

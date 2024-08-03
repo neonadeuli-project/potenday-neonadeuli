@@ -194,14 +194,12 @@ class ClovaService:
                 request_id = str(session_id)
             )
 
-            if request_type == "quiz":
+            if request_type == ChatbotType.QUIZ:
                 system_prompt = SYSTEM_PROMPT_QUIZ
                 user_content = f"{building_name}에 대한 퀴즈를 생성해주세요."
-            elif request_type == "info":
+            elif request_type == ChatbotType.INFO:
                 system_prompt = SYSTEM_PROMPT_INFO
                 user_content = f"{building_name}에 대해 설명해주세요."
-            else:
-                raise ValueError("유효하지 않은 요청 타입입니다. 반드시 퀴즈 또는 정보 타입이어야 합니다.")
             
             request_data = [
                 {"role": "system", "content": system_prompt}, 
@@ -220,7 +218,7 @@ class ClovaService:
                 "seed": 0
             }
 
-            logger.info(f"{request_type.capitalize()} request data: {completion_request_data}")
+            logger.info(f"{request_type.value.capitalize()} request data: {completion_request_data}")
             response = completion_executor.execute(completion_request_data, stream=False)
             logger.info(f"Raw API response for session ID {session_id}: {response}")
             
@@ -235,9 +233,12 @@ class ClovaService:
         except APICallException as e:
             logger.error(f"퀴즈 생성 중 API 오류 발생: {e.api_name}, 상태 코드: {e.status_code}, 오류 메시지: {e.error_message}")
             raise ChatServiceException(f"퀴즈 생성 중 API 오류 발생: {e.api_name}")
+        except ValueError as e:
+            logger.error(f"유효하지 않은 요청 타입입니다. 반드시 퀴즈 또는 정보 타입이어야 합니다.: {str(e)}")
+            raise ChatServiceException(str(e))
         except Exception as e:
-            logger.error(f"퀴즈 생성 중 예상치 못한 오류 발생: {str(e)}")
-            raise ChatServiceException("퀴즈 생성 중 오류 발생")
+            logger.error(f"{request_type.value} 생성 중 예상치 못한 오류 발생: {str(e)}")
+            raise ChatServiceException(f"{request_type.value} 생성 중 오류 발생: {str(e)}")
 
     # content는 돌았던 코스 텍스트가 담겨있으면 됩니다.
     async def get_summary(self, session_id: int, content: str) -> str:
