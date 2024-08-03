@@ -50,7 +50,8 @@ class Settings(BaseSettings):
     CLOVA_API_KEY : str
     CLOVA_API_KEY_PRIMARY_VAL : str
     CLOVA_SLIDING_API_HOST : str
-    CLOVA_COMPLETION_API_HOST : str 
+    CLOVA_COMPLETION_API_HOST : str
+    MAX_TOKEN : int
 
     # 슬라이딩 윈도우 메시지 제한 설정
     MAX_SLIDING_WINDOW_SIZE : int
