@@ -139,7 +139,7 @@ class ChatService:
     # Clova 응답 조회
     async def get_clova_response(self, clova_method: Callable, session_id: int, sliding_window: list, *args, **kwargs) -> dict:
         try:
-            logger.info(f"메서드를 사용하여 {session_id} 세션에 대한 Clova 응답 얻기: {clova_method.__name__}")
+            logger.info(f"메서드를 사용하여 {session_id}번 세션에 대한 Clova 응답 얻기: {clova_method.__name__}")
             logger.info(f"Sliding window 내용: {sliding_window}")
 
             if asyncio.iscoroutinefunction(clova_method):

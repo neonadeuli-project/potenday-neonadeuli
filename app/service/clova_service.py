@@ -116,6 +116,9 @@ class ClovaService:
         try:
             logger.info(f"get_chatting input - session_id: {session_id}, sliding_window: {sliding_window}")
 
+            # 새로운 System 프롬프트로 sliding window 업데이트
+            updated_sliding_window = self.update_sliding_window_system(sliding_window, SYSTEM_PROMPT_CHATBOT)
+
             if sliding_window is None:
                 sliding_window = []
 
@@ -128,7 +131,7 @@ class ClovaService:
             )
 
             request_data = {
-                "messages": [{"role": "system", "content": SYSTEM_PROMPT_CHATBOT}] + sliding_window,
+                "messages": updated_sliding_window,
                 "maxTokens": 3000
             }
 
