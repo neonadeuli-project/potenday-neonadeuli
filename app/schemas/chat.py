@@ -37,6 +37,11 @@ class ChatSessionEndResponse(BaseModel):
     session_id: int
     end_time: datetime
 
+# 채팅 세션 종료 상태 응답 값
+class ChatSessionStatusResponse(BaseModel):
+    session_id: int
+    ended_status: bool
+
 # 채팅 요약에 사용자 방문 코스 요청 값
 class VisitedBuilding(BaseModel):
     name: str
