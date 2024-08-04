@@ -24,6 +24,7 @@ from app.schemas.chat import (
     ChatMessageRequest,
     ChatMessageResponse, 
     ChatSessionEndResponse,
+    ChatSessionStatusResponse,
     ChatSummaryResponse,
     VisitedBuildingList
 )
@@ -171,6 +172,24 @@ async def end_chat_session(
 
         return ended_session
     
+    except SessionNotFoundException as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except ChatServiceException as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        logger.error(f"퀴즈 제공 중 예상치 못한 오류 발생: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="서버 오류가 발생했습니다.")
+    
+# 채팅 세션 종료 여부 확인
+@router.get("/sessions/{session_id}/status", response_model=ChatSessionStatusResponse)
+async def check_chat_session_status(session_id: int, db: AsyncSession = Depends(get_db)):
+    chat_service = ChatService(db)
+    try:
+        ended_status = await chat_service.is_chat_session_ended(session_id)
+        return ChatSessionStatusResponse(
+            session_id=session_id,
+            ended_status=ended_status
+        )
     except SessionNotFoundException as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     except ChatServiceException as e:

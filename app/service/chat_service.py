@@ -335,3 +335,14 @@ class ChatService:
         except Exception as e:
             logger.error(f"채팅 요약 생성 및 저장 도중 예상치 못한 에러 발생: {str(e)}")
             raise ChatServiceException("채팅 요약 실패 및 저장 실패")
+        
+    # 채팅 세션 종료 상태 확인
+    async def is_chat_session_ended(self, session_id: int) -> bool:
+        try:
+            chat_session = await self.chat_repository.get_chat_session(session_id)
+            if not chat_session:
+                raise SessionNotFoundException("세션을 찾을 수 없습니다.")
+            return chat_session.end_time is not None
+        except Exception as e:
+            logger.error(f"세션 종료 상태 조회 중 오류 발생: {str(e)}", exc_info=True)
+            raise ChatServiceException("세션 ID 조회 실패") 
