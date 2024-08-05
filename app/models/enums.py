@@ -11,3 +11,4 @@ class RouteType(Enum):
 class ChatbotType(Enum):
     INFO = "info"
     QUIZ = "quiz"
+    REC = "recommend_questions"
