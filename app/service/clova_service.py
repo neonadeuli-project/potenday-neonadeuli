@@ -188,7 +188,7 @@ class ClovaService:
 
     # 여기서 퀴즈 버튼을 누를 때, 현재 위치의 이름을 받아와야 합니다. (ex - 근정전)
     # async def get_quiz(self, session_id: int, building_name: str) -> Dict[str, str]:
-    async def get_info_or_quiz(self, session_id: int, building_name: str, request_type: ChatbotType) -> str:
+    async def get_info_quiz_rec(self, session_id: int, building_name: str, request_type: ChatbotType) -> str:
         try:
             completion_executor = ChatCompletionExecutor(
                 host = self.api_completion_url,
@@ -203,6 +203,11 @@ class ClovaService:
             elif request_type == ChatbotType.INFO:
                 system_prompt = SYSTEM_PROMPT_INFO
                 user_content = f"{building_name}에 대해 설명해주세요."
+            elif request_type == ChatbotType.REC:
+                system_prompt = SYSTEM_PROMPT_RECOMMEND_QUESTIONS
+                user_content = f"{building_name}에 대한 흥미로운 추천 질문 3개를 생성해주세요."
+            else:
+                raise ValueError("유효하지 않은 요청 타입입니다.")
             
             request_data = [
                 {"role": "system", "content": system_prompt}, 
