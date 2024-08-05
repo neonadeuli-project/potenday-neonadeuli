@@ -5,12 +5,12 @@ from datetime import datetime
 from app.schemas.heritage import HeritageRouteInfo, HeritageBuildingInfo
 
 # 새로운 채팅 세션 생성 요청 값
-class ChatSessionRequest(BaseModel):
+class ChatSessionCreateRequest(BaseModel):
     user_id: int
     heritage_id: int
 
 # 새로운 채팅 세션 생성 응답 값
-class ChatSessionResponse(BaseModel):
+class ChatSessionCreateResponse(BaseModel):
     session_id: int
     start_time: datetime
     created_at: datetime
