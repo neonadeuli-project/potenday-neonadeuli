@@ -98,3 +98,13 @@ class HeritageRepository:
         await self.db.commit()
         await self.db.refresh(quiz)
         return quiz
+    
+    # 문화재에 속한 건축물 검증
+    async def verify_building_belongs_to_heritage(self, heritage_id: int, building_id: int) -> bool:
+        verified_building = await self.db.execute(select(HeritageBuilding)
+                                                  .where(
+                                                      (HeritageBuilding.id == building_id) &
+                                                      (HeritageBuilding.heritage_id == heritage_id)
+                                                  )
+                                                )
+        return verified_building.scalar_one_or_none() is not None
