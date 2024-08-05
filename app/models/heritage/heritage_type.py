@@ -10,14 +10,16 @@ from sqlalchemy.orm import relationship
 from app.core.database import Base
 import enum
 
+from app.models.enums import ElementType
 
-class ElementType(enum.Enum):
-    PALACE="궁궐"
-    TEMPLE="사찰"
-    TOMB="고분"
-    HISTORIC_SITE="유적지"
-    FORTRESS="성곽"
-    OTHER="기타"
+
+# class ElementType(enum.Enum):
+#     PALACE="궁궐"
+#     TEMPLE="사찰"
+#     TOMB="고분"
+#     HISTORIC_SITE="유적지"
+#     FORTRESS="성곽"
+#     OTHER="기타"
 
 class HeritageType(Base):
     __tablename__ = 'heritage_types'
