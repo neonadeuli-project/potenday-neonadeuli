@@ -44,3 +44,15 @@ class RecommendedQuestionRequest(BaseModel):
 class RecommendedQuestionResponse(BaseModel):
      building_id: int
      questions: List[str]
+
+# 건축물 리스트 응답 값
+class HeritageListResponse(BaseModel):
+    id: int
+    name: str
+    location: str
+    heritage_type: Optional[str]
+    image_url: Optional[str]
+    distance: Optional[float]
+
+    class Config:
+        orm_mode = True
