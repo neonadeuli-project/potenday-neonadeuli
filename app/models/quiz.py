@@ -23,4 +23,4 @@ class Quiz(Base):
     explanation = Column(Text)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    chat_session = relationship("ChatSession", back_populates="quizzes")
+    chat_sessions = relationship("ChatSession", back_populates="quizzes")
