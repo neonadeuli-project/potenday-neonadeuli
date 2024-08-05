@@ -1,4 +1,5 @@
 import logging
+from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -61,8 +62,9 @@ async def create_chat_session(
 # 채팅 메시지 전송
 @router.post("/sessions/{session_id}/messages", response_model=ChatMessageResponse)
 async def add_chat_message(
-    session_id: int, 
-    message: ChatMessageRequest, 
+    session_id: int,
+    message: ChatMessageRequest,
+    background_tasks: BackgroundTasks, 
     db: AsyncSession = Depends(get_db)
 ):
     chat_service = ChatService(db)
@@ -120,15 +122,31 @@ async def get_heritage_building_quiz(
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="서버 오류가 발생했습니다.")
     
 # 건축물 추천 질문 제공
-@router.post("/{session_id}/recommend-questions", response_model=RecommendedQuestionResponse)
-async def get_recommented_questions(
+@router.post("/{session_id}/building/recommend-questions", response_model=RecommendedQuestionResponse)
+async def get_building_recommented_questions(
     session_id: int,
     building_data: RecommendedQuestionRequest,
     db: AsyncSession = Depends(get_db)
 ):
     chat_service = ChatService(db)
     try:
-        return await chat_service.get_recommmend_questions(session_id, building_data.building_id)
+        return await chat_service.get_building_questions(session_id, building_data.building_id)
+    
+    except (SessionNotFoundException, BuildingNotFoundException, InvalidAssociationException) as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except Exception as e:
+        logger.error(f"퀴즈 제공 중 예상치 못한 오류 발생: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="서버 오류가 발생했습니다.")
+    
+# 메시지 추천 질문 제공
+@router.get("/{session_id}/message/recommend-questions", response_model=List[str])
+async def get_message_recommented_questions(
+    session_id: int,
+    db: AsyncSession = Depends(get_db)
+):
+    chat_service = ChatService(db)
+    try:
+        return await chat_service.get_message_questions(session_id)
     
     except (SessionNotFoundException, BuildingNotFoundException, InvalidAssociationException) as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
