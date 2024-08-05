@@ -89,7 +89,7 @@ class ChatService:
             logger.error(f"채팅 세션 종료 중 오류 발생: {str(e)}", exc_info=True)
             raise ChatServiceException("채팅 세션 종료 실패")
          
-    # 채팅 핵심 로직
+    # 채팅 메시지 전송 로직
     async def update_conversation(self, session_id: int, content: str, clova_method: Callable):
         try:
             chat_session = await self.chat_repository.get_chat_session(session_id)
@@ -182,6 +182,9 @@ class ChatService:
             
             if bot_message is None:
                 raise ChatServiceException("대화 업데이트 이후 챗봇 메시지를 찾을 수 없습니다.")
+            
+            # 비동기적으로 추천 질문 생성 및 저장
+            asyncio.create_task(self.generate_and_save_recommended_questions(session_id, bot_response))
 
             return ChatMessageResponse (
                 id=bot_message.id,
@@ -292,8 +295,28 @@ class ChatService:
             logger.error(f"퀴즈 대화 업데이트 중 오류 발생: {str(e)}", exc_info=True)
             raise ChatServiceException("퀴즈 대화 업데이트 실패")
         
+    # 채팅 메시지 비동기 추천 질문 생성
+    async def generate_and_save_recommended_questions(self, session_id: int, bot_response: str):
+        try:
+            # Clova 가장 최근 답변으로 추천 질문 생성
+            recommended_questions = await self.clova_service.get_questions(session_id, bot_response)
+
+            # 생성된 추천 질문 db 저장
+            await self.chat_repository.save_recommended_questions(session_id, recommended_questions)
+        except Exception as e:
+            logger.error(f"추천 질문 비동기적으로 생성 및 저장 중 오류 발생: {str(e)}", exc_info=True)
+    
+    # 채팅 메시지 추천 질문 제공
+    async def get_message_questions(self, session_id: int) -> List[str]:
+        try:
+            return await self.chat_repository.get_recommended_questions(session_id)
+        except Exception as e:
+            logger.error(f"메시지 추천 질문 조회 중 오류 발생: {str(e)}", exc_info=True)
+            raise ChatServiceException("추천 질문 조회 실패")
+
+        
     # 문화재 건축물 추천 질문 제공
-    async def get_recommmend_questions(self, session_id: int, building_id: int) -> RecommendedQuestionResponse:
+    async def get_building_questions(self, session_id: int, building_id: int) -> RecommendedQuestionResponse:
         try:
             await self.validation_service.validate_session_and_building(session_id, building_id)
 
