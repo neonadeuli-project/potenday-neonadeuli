@@ -108,3 +108,13 @@ class HeritageRepository:
                                                   )
                                                 )
         return verified_building.scalar_one_or_none() is not None
+    
+    # 문화재 리스트 조회
+    async def search_heritages(self, limit: int, offset: int):
+        result = await self.db.execute(select(Heritage)
+                                       .options(joinedload(Heritage.heritage_types))
+                                       .order_by(Heritage.id)
+                                       .limit(limit)
+                                       .offset(offset)
+                                    )
+        return result.unique().scalars().all()
