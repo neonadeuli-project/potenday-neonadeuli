@@ -3,7 +3,7 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, status, Query, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.deps import get_db, get_token
+from app.core.deps import get_db
 from app.error.chat_exception import (
     ChatServiceException, 
     NoQuizAvailableException, 
