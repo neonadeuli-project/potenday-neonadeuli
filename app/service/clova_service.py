@@ -1,5 +1,6 @@
 import logging
 import json
+import uuid
 import requests
 import http.client
 from typing import Dict, List
@@ -204,7 +205,7 @@ class ClovaService:
                 system_prompt = SYSTEM_PROMPT_INFO
                 user_content = f"{building_name}에 대해 설명해주세요."
             elif request_type == ChatbotType.REC:
-                system_prompt = SYSTEM_PROMPT_RECOMMEND_QUESTIONS
+                system_prompt = SYSTEM_PROMPT_BUILDING_RECOMMENDED_QUESTIONS
                 user_content = f"{building_name}에 대한 흥미로운 추천 질문 3개를 생성해주세요."
             else:
                 raise ValueError("유효하지 않은 요청 타입입니다.")
@@ -286,6 +287,51 @@ class ClovaService:
             logger.error(f"요약 생성 중 예상치 못한 오류 발생: {str(e)}")
             raise ChatServiceException("요약 생성 중 오류 발생")
         
+    async def get_questions(self, session_id: int, bot_response: str) -> List[str]:
+        try:
+            completion_executor = ChatCompletionExecutor(
+                host=self.api_completion_url,
+                api_key=self.api_key,
+                api_key_primary_val=self.api_key_primary_val,
+                request_id=str(session_id)
+            )
+
+            system_prompt = SYSTEM_PROMPT_MESSAGE_RECOMMENDED_QUESTIONS
+            user_content = f"이전 대화 내용: {bot_response}\n해당 내용에 대한 추천 질문 3개를 생성해주세요."
+
+            request_data = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_content}
+            ]
+
+            completion_request_data = {
+                "messages": request_data,
+                "maxTokens": 300,
+                "temperature": 0.5,
+                "topK": 0,
+                "topP": 0.8,
+                "repeatPenalty": 1.2,
+                "stopBefore": [],
+                "includeAiFilters": True,
+                "seed": 0
+            }
+
+            logger.info(f"추천 질문 request 데이터: {completion_request_data}")
+            response = completion_executor.execute(completion_request_data, stream=False)
+            logger.info(f"추천 질문에 대한 Raw한 대답: {response}")
+
+            response_text = parse_non_stream_response(response)
+            questions = [q.strip() for q in response_text.split('\n') if q.strip()]
+
+            return questions[:3]
+        
+        except APICallException as e:
+            logger.error(f"추천 질문 생성 중 API 오류 발생: {e.api_name}, 상태 코드: {e.status_code}, 오류 메시지: {e.error_message}")
+            raise ChatServiceException(f"추천 질문 생성 중 API 오류 발생: {e.api_name}")
+        except Exception as e:
+            logger.error(f"추천 질문 생성 중 예상치 못한 오류 발생: {str(e)}")
+            raise ChatServiceException(f"추천 질문 생성 중 오류 발생: {str(e)}")
+
     def manage_sliding_window_size(self, sliding_window: List[Dict[str, str]]) -> List[Dict[str, str]]:
         max_window_size = settings.MAX_SLIDING_WINDOW_SIZE
         if len(sliding_window) > max_window_size:
