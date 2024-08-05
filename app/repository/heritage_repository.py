@@ -118,3 +118,11 @@ class HeritageRepository:
                                        .offset(offset)
                                     )
         return result.unique().scalars().all()
+    
+    # 문화재 상세 페이지 조회
+    async def get_heritage_by_id(self, heritage_id: int):
+        result = await self.db.execute(select(Heritage)
+                                       .options(joinedload(Heritage.heritage_types))
+                                       .where(Heritage.id == heritage_id)
+                                    )
+        return result.scalar_one_or_none()
