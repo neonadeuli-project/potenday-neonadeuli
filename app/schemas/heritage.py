@@ -56,3 +56,19 @@ class HeritageListResponse(BaseModel):
 
     class Config:
         orm_mode = True
+
+class HeritageDetailResponse(BaseModel):
+    id: int
+    image_url: Optional[str]
+    name: str
+    name_hanja: Optional[str]
+    description: Optional[str]
+    heritage_type: str
+    category: Optional[str]
+    sub_category1: Optional[str]
+    sub_category2: Optional[str]
+    era: Optional[str]
+    location: Optional[str]
+
+    class Config:
+        orm_mode = True
