@@ -39,6 +39,8 @@ class Settings(BaseSettings):
 
     PROJECT_NAME : str
 
+    DATABASE_URL : str
+
     MYSQL_USER : str
     MYSQL_ROOT_PASSWORD : str
     MYSQL_PASSWORD : str
@@ -52,6 +54,14 @@ class Settings(BaseSettings):
     CLOVA_SLIDING_API_HOST : str
     CLOVA_COMPLETION_API_HOST : str
     MAX_TOKEN : int
+
+    # 네이버 클라우드
+    NCP_ACCESS_KEY : str
+    NCP_SECRET_KEY : str
+    NCP_REGION : str
+    NCP_ENDPOINT : str
+    BUCKET_NAME : str
+    CDN_DOMAIN : str
 
     # 슬라이딩 윈도우 메시지 제한 설정
     MAX_SLIDING_WINDOW_SIZE : int
