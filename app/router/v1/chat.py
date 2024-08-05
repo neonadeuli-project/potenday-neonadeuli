@@ -16,11 +16,13 @@ from app.schemas.heritage import (
     BuildingInfoButtonResponse,
     BuildingInfoButtonRequest,
     BuildingQuizButtonResponse,
-    BuildingQuizButtonRequest
+    BuildingQuizButtonRequest,
+    RecommendedQuestionRequest,
+    RecommendedQuestionResponse
 )    
 from app.schemas.chat import (
-    ChatSessionResponse, 
-    ChatSessionRequest, 
+    ChatSessionCreateResponse, 
+    ChatSessionCreateRequest, 
     ChatMessageRequest,
     ChatMessageResponse, 
     ChatSessionEndResponse,
@@ -40,14 +42,15 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 # 새로운 채팅 세션 생성
-@router.post("/sessions", response_model=ChatSessionResponse)
+@router.post("/sessions", response_model=ChatSessionCreateResponse)
 async def create_chat_session(
-    chat_session: ChatSessionRequest, 
+    chat_session: ChatSessionCreateRequest, 
     db: AsyncSession = Depends(get_db)
 ):
     chat_service = ChatService(db)
     try:
         return await chat_service.create_chat_session(chat_session.user_id, chat_session.heritage_id)
+    
     except ChatServiceException as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
@@ -83,15 +86,8 @@ async def get_heritage_building_info(
 ):
     chat_service = ChatService(db)
     try:
-        image_url, bot_response = await chat_service.update_info_conversation(
-            session_id, 
-            building_data.building_id
-        )
+        return await chat_service.update_info_conversation(session_id, building_data.building_id)
         
-        return BuildingInfoButtonResponse(
-            image_url=image_url or "",
-            bot_response=bot_response or ""
-        )
     except (SessionNotFoundException, BuildingNotFoundException, InvalidAssociationException) as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     except ChatServiceException as e:
@@ -109,12 +105,7 @@ async def get_heritage_building_quiz(
 ):
     chat_service = ChatService(db)
     try:
-        quiz_data = await chat_service.update_quiz_conversation(
-            session_id, 
-            building_data.building_id
-        )
-
-        return BuildingQuizButtonResponse(**quiz_data)
+        return await chat_service.update_quiz_conversation(session_id, building_data.building_id)
 
     except (SessionNotFoundException, BuildingNotFoundException, InvalidAssociationException) as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
@@ -128,6 +119,24 @@ async def get_heritage_building_quiz(
         logger.error(f"퀴즈 제공 중 예상치 못한 오류 발생: {str(e)}", exc_info=True)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="서버 오류가 발생했습니다.")
     
+# 건축물 추천 질문 제공
+@router.post("/{session_id}/recommend-questions", response_model=RecommendedQuestionResponse)
+async def get_recommented_questions(
+    session_id: int,
+    building_data: RecommendedQuestionRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    chat_service = ChatService(db)
+    try:
+        return await chat_service.get_recommmend_questions(session_id, building_data.building_id)
+    
+    except (SessionNotFoundException, BuildingNotFoundException, InvalidAssociationException) as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except Exception as e:
+        logger.error(f"퀴즈 제공 중 예상치 못한 오류 발생: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="서버 오류가 발생했습니다.")
+    
+    
 # 채팅 요약 제공
 @router.get("/sessions/{session_id}/summary", response_model=ChatSummaryResponse)
 async def get_chat_summary(
@@ -135,13 +144,9 @@ async def get_chat_summary(
     db: AsyncSession = Depends(get_db)
 ):
     chat_service = ChatService(db)
-    try:
-        summary = await chat_service.update_summary_conversation(session_id)
-
-        if not summary:
-            raise HTTPException(status_code=404, detail="요약 정보를 아직 사용할 수 없습니다.")
-        
-        return ChatSummaryResponse(**summary)
+    try:    
+        return await chat_service.update_summary_conversation(session_id)
+    
     except SummaryNotFoundException as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     except ChatServiceException as e:
@@ -160,9 +165,6 @@ async def end_chat_session(
 ):
     chat_service = ChatService(db)
     try:
-        # 세션 종료
-        ended_session = await chat_service.end_chat_session(session_id)
-
         # 요약 작업 백그라운드 실행
         background_tasks.add_task(
             chat_service.generated_and_save_chat_summary,
@@ -170,7 +172,7 @@ async def end_chat_session(
             visited_buildings.buildings
         )
 
-        return ended_session
+        return await chat_service.end_chat_session(session_id)
     
     except SessionNotFoundException as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
