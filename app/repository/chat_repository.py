@@ -4,7 +4,7 @@ from datetime import datetime
 
 from fastapi import logger
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import update, values, desc
+from sqlalchemy import update, values, desc, delete
 from sqlalchemy.future import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.sql import func
@@ -16,12 +16,21 @@ from app.error.heritage_exceptions import HeritageNotFoundException
 from app.models.chat.chat_session import ChatSession
 from app.models.chat.chat_message import ChatMessage
 from app.models.enums import RoleType
+from app.models.question import RecommendedQuestion
 from app.models.user import User
 from app.models.heritage.heritage import Heritage
 from app.schemas.chat import VisitedBuilding
 
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from app.core.config import settings
+
 logger = logging.getLogger(__name__)
 
+# Create a new async engine and session factory
+engine = create_async_engine(str(settings.SQLALCHEMY_DATABASE_URI), echo=True)
+SessionLocal = sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
 
 class ChatRepository:
 
@@ -185,6 +194,43 @@ class ChatRepository:
         except SQLAlchemyError as e:
             logger.error(f"채팅 세션 조회 중 데이터베이스 오류 발생: {str(e)}", exc_info=True)
             raise DatabaseOperationException("채팅 세션 조회 중 데이터베이스 오류 발생")
+        
+    # 추천 질문 조회
+    async def get_recommended_questions(self, session_id: int) -> List[str]:
+        try:
+            result = await self.db.execute(select(RecommendedQuestion)
+                                           .where(RecommendedQuestion.session_id == session_id)
+                                           .order_by(RecommendedQuestion.id)
+                                        )
+            questions = result.scalars().all()
+            
+            # 문자열 리스트로 전환
+            question_texts = [question.question for question in questions]
+            return question_texts
+        except Exception as e:
+            logger.error(f"메시지 추천 질문 조회 중 오류 발생 : {str(e)}", exc_info=True)
+            raise
+
+    # 추천 질문 저장
+    async def save_recommended_questions(self, session_id: int, questions: List[str]):
+        async with SessionLocal() as session:
+            async with session.begin():
+                try:
+                    # 기존 추천 질문이 있다면 삭제
+                    await session.execute(delete(RecommendedQuestion)
+                                        .where(RecommendedQuestion.session_id == session_id)
+                                        )
+                    # 새로운 추천 질문 저장
+                    for question in questions:
+                        new_question = RecommendedQuestion(session_id=session_id, question=question)
+                        session.add(new_question)
+
+                    await session.commit()
+
+                except Exception as e:
+                    await session.rollback()
+                    logger.error(f"메시지 추천 질문 저장 중 오류 발생: {str(e)}", exc_info=True)
+                    raise
     
     # 채팅 요약 정보 조회
     async def get_chat_summary(self, session_id: int):
@@ -192,7 +238,7 @@ class ChatRepository:
             result = await self.db.execute(select(ChatSession)
                                         .options(joinedload(ChatSession.heritages))
                                         .where(ChatSession.id == session_id)
-                                        )
+                                    )
             chat_session = result.scalar_one_or_none()
 
             if chat_session and chat_session.summary_keywords and chat_session.visited_buildings:
