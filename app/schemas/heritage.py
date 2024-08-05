@@ -35,3 +35,12 @@ class BuildingQuizButtonResponse(BaseModel):
     answer: int
     explanation: str
     quiz_count : int
+
+# 건축물 추천 질문 요청 값
+class RecommendedQuestionRequest(BaseModel):
+    building_id: int
+
+# 건축물 추천 질문 응답 값
+class RecommendedQuestionResponse(BaseModel):
+     building_id: int
+     questions: List[str]
