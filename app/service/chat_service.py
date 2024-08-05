@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 
+import re
 from typing import Any, Callable, Dict, List
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,15 +15,17 @@ from app.error.heritage_exceptions import (
 )
 from app.error.chat_exception import SessionNotFoundException
 from app.models.enums import ChatbotType, RoleType
+from app.schemas.heritage import BuildingInfoButtonResponse, BuildingQuizButtonResponse, RecommendedQuestionResponse
 from app.service.clova_service import ClovaService
 from app.service.validation_service import ValidationService
 from app.repository.heritage_repository import HeritageRepository
 from app.repository.chat_repository import ChatRepository
 from app.repository.user_repository import UserRepository
 from app.schemas.chat import (
-    ChatSessionResponse, 
+    ChatSessionCreateResponse, 
     ChatMessageResponse, 
-    ChatSessionEndResponse, 
+    ChatSessionEndResponse,
+    ChatSummaryResponse, 
     VisitedBuilding
 )
 
@@ -42,7 +45,7 @@ class ChatService:
         self.current_sliding_window = None
     
     # 채팅 세션 생성하기
-    async def create_chat_session(self, user_id: int, heritage_id: int):
+    async def create_chat_session(self, user_id: int, heritage_id: int) -> ChatSessionCreateResponse:
         logger.info(f"ChatService에서 채팅 세션 생성을 시도합니다. (user_id: {user_id}, heritage_id: {heritage_id})")
         async with self.db.begin():
             try:
@@ -53,7 +56,7 @@ class ChatService:
                 heritage = await self.heritage_repository.get_heritage_by_id(heritage_id)
                 routes = await self.heritage_repository.get_routes_with_buildings_by_heritages_id(heritage_id)
 
-                return ChatSessionResponse(
+                return ChatSessionCreateResponse(
                     session_id=new_session.id,
                     start_time=new_session.start_time,
                     created_at=new_session.created_at,
@@ -192,7 +195,7 @@ class ChatService:
             raise ChatServiceException("채팅 대화 업데이트 실패")
 
     # 문화재 건축물 정보 제공 
-    async def update_info_conversation(self, session_id: int, building_id: int):
+    async def update_info_conversation(self, session_id: int, building_id: int) -> BuildingInfoButtonResponse:
         try:
             # 세션 및 유효성 검사
             await self.validation_service.validate_session_and_building(session_id, building_id) 
@@ -205,13 +208,18 @@ class ChatService:
             building_name = await self.heritage_repository.get_heritage_building_name_by_id(building_id)
             if not building_name:
                 raise BuildingNotFoundException(f"건축물 ID {building_id}에 해당하는 건축물 이름을 찾을 수 없습니다.")
-
-            bot_response = await self.clova_service.get_info_or_quiz(session_id, building_name, ChatbotType.INFO)
+            
+            # 정보 데이터 파싱
+            bot_response = await self.clova_service.get_info_quiz_rec(session_id, building_name, ChatbotType.INFO)
             
             if bot_response is None:
                 raise ChatServiceException("대화 업데이트 이후 건축물 정보 메시지를 찾을 수 없습니다.")
 
-            return image_url, bot_response
+            # return image_url, bot_response
+            return BuildingInfoButtonResponse (
+                image_url=image_url or "",
+                bot_response=bot_response or ""
+            )
         except (SessionNotFoundException, BuildingNotFoundException, InvalidAssociationException):
             raise
         except Exception as e:
@@ -223,7 +231,7 @@ class ChatService:
     async def get_quiz_with_retry(self, session_id: int, building_name: str) -> Dict[str, Any]:
         for attempt in range(settings.MAX_RETRIES):
             try:
-                quiz_response = await self.clova_service.get_info_or_quiz(session_id, building_name, ChatbotType.QUIZ)
+                quiz_response = await self.clova_service.get_info_quiz_rec(session_id, building_name, ChatbotType.QUIZ)
                 parsed_quiz = parse_quiz_content(quiz_response)
 
                 if self.validation_service.is_valid_quiz(parsed_quiz):
@@ -239,7 +247,7 @@ class ChatService:
         raise QuizGenerationException("유효한 퀴즈 생성 실패")
     
     # 문화재 건축물 퀴즈 제공 
-    async def update_quiz_conversation(self, session_id: int, building_id: int) -> Dict[str, Any]:
+    async def update_quiz_conversation(self, session_id: int, building_id: int) -> BuildingQuizButtonResponse:
         try:
             chat_session, building = await self.validation_service.validate_session_and_building(session_id, building_id)
 
@@ -270,22 +278,50 @@ class ChatService:
 
             # await self.update_conversation(session_id, building_name, quiz_reference_method)
 
-            return {
-                'question': saved_quiz.question,
-                'options': json.loads(saved_quiz.options) if isinstance(saved_quiz.options, str) else saved_quiz.options,
-                'answer': saved_quiz.answer,
-                'explanation': saved_quiz.explanation,
-                'quiz_count': chat_session.quiz_count
-            }
+            return BuildingQuizButtonResponse (
+                question=saved_quiz.question,
+                options=json.loads(saved_quiz.options) if isinstance(saved_quiz.options, str) else saved_quiz.options,
+                answer=saved_quiz.answer,
+                explanation=saved_quiz.explanation,
+                quiz_count=chat_session.quiz_count
+            )
+
         except (SessionNotFoundException, BuildingNotFoundException, InvalidAssociationException):
             raise
         except Exception as e:
             logger.error(f"퀴즈 대화 업데이트 중 오류 발생: {str(e)}", exc_info=True)
             raise ChatServiceException("퀴즈 대화 업데이트 실패")
+        
+    # 문화재 건축물 추천 질문 제공
+    async def get_recommmend_questions(self, session_id: int, building_id: int) -> RecommendedQuestionResponse:
+        try:
+            await self.validation_service.validate_session_and_building(session_id, building_id)
 
+            # 해당 건축물의 이름 조회
+            building_name = await self.heritage_repository.get_heritage_building_name_by_id(building_id)
+            if not building_name:
+                raise BuildingNotFoundException(f"건축물 ID {building_id} 에 해당하는 건축물 이름을 찾을 수 없습니다.")
+            
+            # 질문 데이터 파싱 
+            question_response = await self.clova_service.get_info_quiz_rec(session_id, building_name, ChatbotType.REC)
+            
+            # 번호와 점을 제거하고 질문 텍스트만 추출
+            questions = [re.sub(r'^\d+\.\s*', '', question.strip()) for question in question_response.split('\n') if question.strip()]
+            
+            # 최대 3개 질문만 사용
+            return RecommendedQuestionResponse (
+                building_id=building_id,
+                questions=questions[:3]
+            )
+
+        except (SessionNotFoundException, BuildingNotFoundException, InvalidAssociationException):
+            raise
+        except Exception as e:
+            logger.error(f"추천 질문 업데이트 중 오류 발생: {str(e)}", exc_info=True)
+            raise ChatServiceException("추천 질문 업데이트 실패")
 
     # 채팅 요약 메서드
-    async def update_summary_conversation(self, session_id: int):
+    async def update_summary_conversation(self, session_id: int) -> ChatSummaryResponse:
         try:
             chat_session = await self.chat_repository.get_chat_session(session_id)
             if not chat_session:
@@ -295,12 +331,13 @@ class ChatService:
             if summary:
                 # building_course 문자열 리스트로 변환
                 building_course = [building['name'] for building in summary['building_course'] if building['visited']]
-                return {
-                    'chat_date': summary['chat_date'],
-                    'heritage_name': summary['heritage_name'],
-                    'building_course': building_course,
-                    'keywords': summary['keywords']
-                }
+
+                return ChatSummaryResponse (
+                    chat_date=summary['chat_date'],
+                    heritage_name=summary['heritage_name'],
+                    building_course=building_course,
+                    keywords=summary['keywords']
+                )
             
             return None
         except SessionNotFoundException:
