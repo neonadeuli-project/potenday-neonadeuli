@@ -47,6 +47,7 @@ class ImageRepository:
 
         # 건축물 이미지 저장
         new_image = HeritageBuildingImage (
+            heritage_id=heritage_id,
             building_id=building_id,
             image_url=image_url,
             description=description,
