@@ -66,7 +66,7 @@ class Settings(BaseSettings):
     # 슬라이딩 윈도우 메시지 제한 설정
     MAX_SLIDING_WINDOW_SIZE : int
 
-    #퀴즈 제한 설정
+    # 퀴즈 제한 설정
     QUIZ_COUNT : int
     MAX_RETRIES : int
     RETRY_DELAY : int
@@ -75,6 +75,9 @@ class Settings(BaseSettings):
     SECRET_KEY : str
     ALGORITHM : str
     ACCESS_TOKEN_EXPIRE_MINUTES : int
+
+    # 기본 이미지 URL
+    DEFAULT_IMAGE_URL : str
 
     @computed_field
     @property
