@@ -1,6 +1,6 @@
 import logging
 
-from typing import List
+from typing import List, Optional
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from haversine import haversine
@@ -18,10 +18,10 @@ class HeritageService:
         self.heritage_repository = HeritageRepository(db)
 
     # 문화재 리스트 조회
-    async def get_heritages(self, page: int, limit: int, user_latitude: float, user_longitude) -> List[HeritageListResponse]:
+    async def get_heritages(self, page: int, limit: int, user_latitude: float, user_longitude, radius: Optional[int]) -> List[HeritageListResponse]:
         try:
             offset = (page - 1) * limit
-            heritages = await self.heritage_repository.search_heritages(limit, offset)
+            heritages = await self.heritage_repository.search_heritages(limit, offset, radius)
         except SQLAlchemyError as e:
             logger.error(f"Database error in get_heritages: {str(e)}")
             raise DatabaseConnectionError()

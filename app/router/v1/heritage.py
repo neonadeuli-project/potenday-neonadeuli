@@ -1,6 +1,6 @@
 # 로깅 설정
 import logging
-from typing import List
+from typing import List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -22,11 +22,12 @@ async def get_heritage_list(
     page: int = Query(1, ge=1),
     limit: int = Query(10, ge=1, le=100),
     user_latitude: float = Query(..., ge=-90, le=90),
-    user_longitude: float = Query(..., ge=-180, le=180)
+    user_longitude: float = Query(..., ge=-180, le=180),
+    radius: Optional[int] = Query(None, ge=11, le=50)
 ):
     try:
         heritage_service = HeritageService(db)
-        heritages = await heritage_service.get_heritages(page, limit, user_latitude, user_longitude)
+        heritages = await heritage_service.get_heritages(page, limit, user_latitude, user_longitude, radius)
         return heritages
     except DatabaseConnectionError as e:
         logger.error(f"데이터 베이스 연결 에러: {str(e)}")

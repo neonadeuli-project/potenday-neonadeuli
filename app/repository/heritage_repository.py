@@ -110,13 +110,14 @@ class HeritageRepository:
         return verified_building.scalar_one_or_none() is not None
     
     # 문화재 리스트 조회
-    async def search_heritages(self, limit: int, offset: int):
-        result = await self.db.execute(select(Heritage)
-                                       .options(joinedload(Heritage.heritage_types))
-                                       .order_by(Heritage.id)
-                                       .limit(limit)
-                                       .offset(offset)
-                                    )
+    async def search_heritages(self, limit: int, offset: int, radius: Optional[int] = None) -> List[Heritage]:
+
+        query = select(Heritage).options(joinedload(Heritage.heritage_types)).order_by(Heritage.id).limit(limit).offset(offset)
+
+        if radius is not None:
+            query = query.where(Heritage.radius == radius)
+        
+        result = await self.db.execute(query)
         return result.unique().scalars().all()
     
     # 문화재 상세 페이지 조회
