@@ -22,7 +22,7 @@ class HeritageRoute(Base):
     description = Column(Text)
     type = Column(Enum(RouteType))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     heritages = relationship("Heritage", back_populates="routes")
     route_buildings = relationship("HeritageRouteBuilding", back_populates="routes")
