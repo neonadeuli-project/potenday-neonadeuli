@@ -70,3 +70,21 @@ def parse_quiz_content(quiz_content: str) -> Dict[str, any]:
     except Exception as e:
         logger.error(f"퀴즈 내용 파싱 중 오류 발생: {str(e)}")
         raise ValueError("퀴즈 내용을 파싱할 수 없습니다.") from e
+    
+# 문화재 location 데이터 파싱
+def clean_location(location: str) -> str:
+    if not location:
+        return ""
+    
+    # 불필요한 공백, 탭, 줄바꿈 제거
+    cleaned = re.sub(r'\s+', ' ', location).strip()
+
+    # '/' 기호 기준으로 분리하고 첫번째 부분만 사용
+    parts = cleaned.split('/')
+    if len(parts) > 1:
+        cleaned = parts[0].strip()
+
+    # '(' 이후 내용 제거 (지번, 정보 등) 
+    cleaned = re.sub(r'\(.*?\)', '', cleaned).strip()
+
+    return cleaned
