@@ -10,9 +10,9 @@ class HeritageBuildingImageResponse(BaseModel):
     id: int
     building_id: int
     image_url: str
-    description: str
-    alt_text: str
-    image_order: int
+    description: Optional[str] = None
+    alt_text: Optional[str] = None
+    image_order: Optional[int]
     created_at: datetime
     updated_at: Optional[datetime] = None
 
