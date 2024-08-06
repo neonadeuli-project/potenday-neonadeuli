@@ -4,7 +4,17 @@ from fastapi.routing import APIRoute
 from starlette.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
-from app.models.init import User, Heritage, ChatSession, ChatMessage
+from app.models.init import (
+    User, 
+    Heritage, 
+    ChatSession, 
+    ChatMessage,
+    HeritageBuilding,
+    HeritageBuildingImage,
+    HeritageRoute,
+    HeritageRouteBuilding,
+    HeritageType
+)
 from app.core.database import Base, engine
 from app.core.config import settings
 from app.router.api import api_router
