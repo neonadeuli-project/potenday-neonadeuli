@@ -16,3 +16,5 @@ alembic
 aiohttp
 python-jose
 boto3
+haversine
+pygeodesic
