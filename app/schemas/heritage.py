@@ -55,7 +55,7 @@ class HeritageListResponse(BaseModel):
     distance: Optional[float]
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 class HeritageDetailResponse(BaseModel):
     id: int
@@ -71,4 +71,4 @@ class HeritageDetailResponse(BaseModel):
     location: Optional[str]
 
     class Config:
-        orm_mode = True
+        from_attributes = True
