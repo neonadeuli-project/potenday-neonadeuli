@@ -8,24 +8,13 @@ from sqlalchemy import (
 from sqlalchemy.orm import relationship
 
 from app.core.database import Base
-import enum
-
-from app.models.enums import ElementType
-
-
-# class ElementType(enum.Enum):
-#     PALACE="궁궐"
-#     TEMPLE="사찰"
-#     TOMB="고분"
-#     HISTORIC_SITE="유적지"
-#     FORTRESS="성곽"
-#     OTHER="기타"
+from app.models.enums import HeritageTypeName
 
 class HeritageType(Base):
     __tablename__ = 'heritage_types'
-    id = Column(Integer, primary_key=True, index=True)
+    type_id = Column(Integer, primary_key=True)
     name = Column(String(50))
-    element_type = Column(Enum(ElementType))
+    type_name = Column(Enum(HeritageTypeName))
     default_radius = Column(Float)
 
     heritages = relationship("Heritage", back_populates="heritage_types")
