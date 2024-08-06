@@ -51,7 +51,7 @@ class ImageService:
         try:
             contents = await file.read()
             self.s3_client.put_object(Bucket=settings.BUCKET_NAME, Key=file_name, Body=contents)
-            return f"https://{settings.CDN_DOMAIN}/{settings.BUCKET_NAME}/{file_name}"
+            return f"https://{settings.CDN_DOMAIN}/{file_name}"
         except ClientError as e:
             raise ImageUploadException(file.filename, str(e))
         
