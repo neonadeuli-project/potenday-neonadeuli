@@ -8,6 +8,7 @@ from sqlalchemy.future import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import joinedload, aliased
 
+from app.models.chat.chat_session import ChatSession
 from app.models.enums import SortOrder
 from app.models.heritage.heritage_building_image import HeritageBuildingImage
 from app.models.heritage.heritage_building import HeritageBuilding
@@ -25,18 +26,36 @@ class HeritageRepository:
     def __init__ (self, db: AsyncSession):
         self.db = db
 
-    # 문화재 ID 조회
+    # 문화재 ID에 해당하는 문화재 조회
     async def get_heritage_by_id(self, heritage_id: int) -> Heritage:
         result = await self.db.execute(select(Heritage)
                                        .where(Heritage.id == heritage_id))
         return result.scalar_one()
     
-    # 문화재 이름 조회
+    # 건축물 ID로 문화재 이름 조회
     async def get_heritage_building_name_by_id(self, building_id: int) -> str:
         result = await self.db.execute(select(HeritageBuilding.name)
                                        .where(HeritageBuilding.id == building_id)
                                     )
         return result.scalar_one_or_none()
+    
+    # 세션 ID로 문화재 ID 조회
+    async def get_heritage_id_by_session(self, session_id: int) -> int:
+        result = await self.db.execute(select(ChatSession.heritage_id)
+                                       .where(ChatSession.id == session_id))
+        heritage_id = result.scalar_one_or_none()
+        if heritage_id is None:
+            raise ValueError(f"세션 ID {session_id}에 대한 문화재 ID를 찾을 수 없습니다.")
+        return heritage_id 
+    
+    # 문화재 ID로 문화재 이름 조회
+    async def get_heritage_name_by_id(self, heritage_id: int) -> str:
+        result = await self.db.execute(select(Heritage.name)
+                                       .where(Heritage.id == heritage_id))
+        heritage_name = result.scalar_one_or_none()
+        if heritage_name is None:
+            raise ValueError(f"문화재 ID {heritage_id}에 대한 이름을 찾을 수 없습니다.")
+        return heritage_name
 
     # 문화재 건축물 ID 조회
     async def get_heritage_building_by_id(self, building_id: int) -> Optional[HeritageBuilding]:
