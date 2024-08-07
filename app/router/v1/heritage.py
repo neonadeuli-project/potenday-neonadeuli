@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.core.deps import get_db
 from app.error.heritage_exceptions import DatabaseConnectionError, HeritageNotFoundException, HeritageServiceException, InvalidCoordinatesException
-from app.models.enums import SortOrder
+from app.models.enums import EraCategory, SortOrder
 from app.schemas.heritage import HeritageDetailResponse, HeritageListResponse
 from app.service.heritage_service import HeritageService
 
@@ -28,6 +28,7 @@ async def get_heritage_list(
     area_code: Optional[int] = Query(None, ge=11, le=50),
     heritage_type: Optional[List[int]] = Query(None, description="문화재 유형"),
     distance_range: Optional[str] = Query(None, description="거리 범위 유형 (0-0.5, 0.5-1, 1-10, 10-100, 100-1000)"),
+    era_category: Optional[EraCategory] = Query(None),
     sort_by: str = Query("id", description="정렬할 필드 (ID, 거리)"),
     sort_order: SortOrder = Query(SortOrder.ASC, description="정렬 순서 (오름차순 or 내림차순)")
 ):
@@ -42,6 +43,7 @@ async def get_heritage_list(
             area_code,
             heritage_type,
             distance_range,
+            era_category,
             sort_by,
             sort_order
         )

@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from haversine import haversine
 
 from app.error.heritage_exceptions import DatabaseConnectionError, HeritageNotFoundException, InvalidCoordinatesException
-from app.models.enums import SortOrder
+from app.models.enums import EraCategory, SortOrder
 from app.repository.heritage_repository import HeritageRepository
 from app.schemas.heritage import HeritageDetailResponse, HeritageListResponse
 from app.utils.common import clean_location
@@ -30,6 +30,7 @@ class HeritageService:
             area_code: Optional[int] = None,
             heritage_type: Optional[int] = None,
             distance_range: Optional[str] = None,
+            era_category: Optional[EraCategory] = None,
             sort_by: str = "id",
             sort_order: SortOrder = SortOrder.ASC
     ) -> List[HeritageListResponse]:
@@ -44,6 +45,7 @@ class HeritageService:
                 area_code,
                 heritage_type,
                 distance_range,
+                era_category,
                 sort_by,
                 sort_order
             )

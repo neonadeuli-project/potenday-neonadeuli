@@ -9,7 +9,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import joinedload, aliased
 
 from app.models.chat.chat_session import ChatSession
-from app.models.enums import SortOrder
+from app.models.enums import EraCategory, SortOrder
 from app.models.heritage.heritage_building_image import HeritageBuildingImage
 from app.models.heritage.heritage_building import HeritageBuilding
 from app.models.heritage.heritage_route import HeritageRoute
@@ -140,6 +140,7 @@ class HeritageRepository:
         area_code: Optional[int] = None,
         heritage_type: Optional[int] = None,
         distance_range: Optional[str] = None,
+        era_category: Optional[EraCategory] = None,
         sort_by: str = "id",
         sort_order: SortOrder = SortOrder.ASC
 ) -> List[Tuple[Heritage, float]]:
@@ -167,6 +168,10 @@ class HeritageRepository:
         # 문화재 유형 필터링
         if heritage_type is not None:
             query = query.where(Heritage.heritage_type_id.in_(heritage_type))
+
+        # 시대 카테고리 필터링
+        if era_category and era_category != EraCategory.ALL:
+            query = query.filter(Heritage.era.like(f"%{era_category.value}"))
 
         # 정렬 로직 추가
         if sort_by == "distance":
