@@ -30,3 +30,7 @@ class HeritageTypeName(Enum):
     CULTURAL_HERITAGE_MATERIALS= "문화유산자료"
     NATIONAL_REGISTERED_HERITAGE= "국가등록유산"
     NORTH_5_INTANGIBLE_HERITAGE= "이북5도무형유산"
+
+class SortOrder(str, Enum):
+    ASC = "오름차순"
+    DESC = "내림차순"
