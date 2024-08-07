@@ -136,6 +136,7 @@ class HeritageRepository:
         offset: int, 
         user_latitude: float,
         user_longitude: float,
+        name: Optional[str] = None,
         area_code: Optional[int] = None,
         heritage_type: Optional[int] = None,
         distance_range: Optional[str] = None,
@@ -155,10 +156,15 @@ class HeritageRepository:
 
         query = query.add_columns(distance_expr)
 
+        # 이름 필터링
+        if name:
+            query = query.where(Heritage.name.like(f"%{name}%"))
+
         # 지역 필터링 (area_code None이 아닐 때만 적용)
         if area_code is not None:
             query = query.where(Heritage.area_code == area_code)
 
+        # 문화재 유형 필터링
         if heritage_type is not None:
             query = query.where(Heritage.heritage_type_id.in_(heritage_type))
 
