@@ -28,3 +28,9 @@ class NoImagesFoundException(ImageException):
     """건물에 대한 이미지를 찾을 수 없을 때 발생하는 예외"""
     def __init__(self, building_id: int):
         super().__init__(f"건축물 ID {building_id}에 대한 이미지를 찾을 수 없습니다.")
+
+class S3UploadException(Exception):
+    def __init__(self, filename: str, error: str):
+        self.filename = filename
+        self.error = error
+        super().__init__(f"파일명 : {filename} 인 파일을 S3에 업로드를 하지 못했습니다.: {error}")
