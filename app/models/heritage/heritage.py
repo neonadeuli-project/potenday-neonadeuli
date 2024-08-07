@@ -28,7 +28,7 @@ class Heritage(Base):
     sub_category2 = Column(String(50))
     sub_category3 = Column(String(50))
     era = Column(String(255))
-    radius = Column(Float)
+    area_code = Column(Float)
     image_url = Column(String(255))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
