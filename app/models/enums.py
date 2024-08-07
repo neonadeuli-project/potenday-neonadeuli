@@ -34,3 +34,21 @@ class HeritageTypeName(Enum):
 class SortOrder(str, Enum):
     ASC = "오름차순"
     DESC = "내림차순"
+
+class EraCategory(str, Enum):
+    ALL = "전체"
+    PREHISTORIC = "선사시대"
+    STONE_AGE = "석기시대"
+    BRONZE_AGE = "청동기시대"
+    IRON_AGE = "철기시대"
+    SAMHAN = "삼한시대"
+    THREE_KINGDOMS = "삼국시대"
+    GOGURYEO = "삼국:고구려"
+    BAEKJE = "삼국:백제"
+    SILLA = "삼국:신라"
+    BALHAE = "발해"
+    UNIFIED_SILLA = "통일신라"
+    GORYEO = "고려시대"
+    JOSEON = "조선시대"
+    KOREAN_EMPIRE = "대한제국시대"
+    JAPANESE_COLONIAL = "일제강점기"
