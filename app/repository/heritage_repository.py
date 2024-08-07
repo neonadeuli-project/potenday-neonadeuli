@@ -142,8 +142,9 @@ class HeritageRepository:
         distance_range: Optional[str] = None,
         era_category: Optional[EraCategory] = None,
         sort_by: str = "id",
-        sort_order: SortOrder = SortOrder.ASC
-) -> List[Tuple[Heritage, float]]:
+        sort_order: SortOrder = SortOrder.ASC,
+        count_total: bool = False
+) -> Tuple[List[Tuple[Heritage, float]], int]:
 
         query = select(Heritage).options(joinedload(Heritage.heritage_types))
 
@@ -184,11 +185,20 @@ class HeritageRepository:
         else:
             query = query.order_by(desc(order_column))
 
+        # 전체 개수 계산
+        if count_total:
+            count_query = query.with_only_columns(func.count()).order_by(None)
+            total_count = await self.db.execute(count_query)
+            total_count = total_count.scalar()
+        else:
+            total_count = 0
+
         # 거리 범위 필터링
         if distance_range:
             min_dist, max_dist = parse_heritage_dist_range(distance_range)
             query = query.where(and_(distance_expr >= min_dist, distance_expr < max_dist))
 
+        # 페이지 네이션 적용
         query = query.limit(limit).offset(offset)
 
         logger.info(f"문화재 조회 SQL 쿼리가 생성되었습니다.: {query}")
@@ -196,9 +206,9 @@ class HeritageRepository:
         
         try:
             result = await self.db.execute(query)
-            data = result.unique().all()
-            logger.info(f"쿼리 개수 결과 : {len(data)}")
-            return data
+            heritages = result.unique().all()
+            logger.info(f"쿼리 개수 결과 : {len(heritages)}")
+            return heritages, total_count
         except Exception as e:
             logger.error(f"쿼리 실행 중 오류 발생: {str(e)}")
             raise
