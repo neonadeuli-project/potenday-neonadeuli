@@ -84,7 +84,7 @@ def parse_quiz_content(quiz_content: str) -> Dict[str, any]:
         raise ValueError("퀴즈 내용을 파싱할 수 없습니다.") from e
     
 # 문화재 location 데이터 파싱
-def clean_location(location: str) -> str:
+def parse_location_for_detail(location: str) -> str:
     if not location:
         return ""
     
@@ -98,6 +98,38 @@ def clean_location(location: str) -> str:
 
     # '(' 이후 내용 제거 (지번, 정보 등) 
     cleaned = re.sub(r'\(.*?\)', '', cleaned).strip()
+
+    return cleaned
+
+def parse_location_for_list(location: str) -> str:
+    if not location:
+        return ""
+    
+    # 불필요한 공백, 탭, 줄바꿈 제거
+    cleaned = re.sub(r'\s+', ' ', location).strip()
+
+    # '/' 기호 기준으로 분리하고 첫번째 부분만 사용
+    parts = cleaned.split('/')
+    if len(parts) > 1:
+        cleaned = parts[0].strip()
+
+    # 괄호와 그 내용 제거
+    cleaned = re.sub(r'\(.*?\)', '', cleaned).strip()
+
+    # 쉼표 이후 내용 제거
+    cleaned = cleaned.split(',')[0].strip()
+
+    # 특정 키워드 이후 내용 제거
+    keywords = ['번지', '길', '로', '동', '읍', '면']
+    for keyword in keywords:
+        match = re.search(f'{keyword}\\s', cleaned)
+        if match:
+            end_index = match.end()
+            cleaned = cleaned[:end_index].strip()
+            break
+    
+    # 숫자로 끝나는 경우, 숫자 그 앞 공백 제거
+    cleaned = re.sub(r'\s+\d+$', '', cleaned)
 
     return cleaned
 

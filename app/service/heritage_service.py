@@ -9,7 +9,7 @@ from app.error.heritage_exceptions import DatabaseConnectionError, HeritageNotFo
 from app.models.enums import EraCategory, SortOrder
 from app.repository.heritage_repository import HeritageRepository
 from app.schemas.heritage import HeritageDetailResponse, HeritageListResponse, PaginatedHeritageResponse
-from app.utils.common import clean_location
+from app.utils.common import parse_location_for_detail, parse_location_for_list
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -54,43 +54,11 @@ class HeritageService:
             logger.error(f"Database error in get_heritages: {str(e)}")
             raise DatabaseConnectionError()
 
-        # user_location = (user_latitude, user_longitude)
-        # result = []
-        # for heritage, distance in heritages:
-        #     # try:
-        #     #     if heritage.latitude is not None and heritage.longitude is not None:
-        #     #         heritage_location = (float(heritage.latitude), float(heritage.longitude))
-        #     #         distance = round(haversine(user_location, heritage_location), 1)
-        #     #     else:
-        #     #         raise InvalidCoordinatesException(heritage.id)
-        #     # except (ValueError, TypeError) as e:
-        #     #     distance = None
-        #     #     logger.error(f"문화재 ID가 {heritage.id}인 문화재의 거리 계산을 실패했습니다. : {str(e)}")
-        #     #     distance = None
-        #     # except InvalidCoordinatesException as e:
-        #     #     logger.warning(str(e))
-        #     #     distance = None
-            
-        #     # location 데이터 정제
-        #     cleaned_location = clean_location(heritage.location)
-
-        #     # 기본 이미지 URL 설정
-        #     image_url = settings.DEFAULT_IMAGE_URL if heritage.image_url in [None, "", "nan", "None"] else heritage.image_url
-
-        #     result.append(HeritageListResponse(
-        #         id = heritage.id,
-        #         name = heritage.name,
-        #         location = cleaned_location,
-        #         heritage_type = heritage.heritage_types.name if heritage.heritage_types else "Unknown",
-        #         image_url = image_url,
-        #         distance = round(distance, 1) if distance is not None else None
-        #     ))
-
         heritage_list = [
             HeritageListResponse(
                 id = heritage.id,
                 name = heritage.name,
-                location = clean_location(heritage.location),
+                location = parse_location_for_list(heritage.location),
                 heritage_type = heritage.heritage_types.name if heritage.heritage_types else "Unknown",
                 image_url = heritage.image_url or settings.DEFAULT_IMAGE_URL,
                 distance = round(distance, 1) if distance is not None else None
@@ -126,5 +94,5 @@ class HeritageService:
             sub_category1 = heritage.sub_category1,
             sub_category2 = heritage.sub_category2,
             era = heritage.era,
-            location = clean_location(heritage.location)
+            location = parse_location_for_detail(heritage.location)
         )
