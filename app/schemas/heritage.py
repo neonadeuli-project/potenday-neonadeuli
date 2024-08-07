@@ -57,6 +57,13 @@ class HeritageListResponse(BaseModel):
     class Config:
         from_attributes = True
 
+# 건축물 페이지네이션 응답 값
+class PaginatedHeritageResponse(BaseModel):
+    items: List[HeritageListResponse]
+    total_count : int
+    page: int
+    limit: int
+
 class HeritageDetailResponse(BaseModel):
     id: int
     image_url: Optional[str]
