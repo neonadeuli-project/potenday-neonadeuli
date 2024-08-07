@@ -66,16 +66,16 @@ class PaginatedHeritageResponse(BaseModel):
 
 class HeritageDetailResponse(BaseModel):
     id: int
-    image_url: Optional[str]
+    image_url: Optional[str] = None
     name: str
-    name_hanja: Optional[str]
-    description: Optional[str]
-    heritage_type: str
-    category: Optional[str]
-    sub_category1: Optional[str]
-    sub_category2: Optional[str]
-    era: Optional[str]
-    location: Optional[str]
+    name_hanja: Optional[str] = None
+    description: Optional[str] = None
+    heritage_type: Optional[str] = None
+    category: Optional[str] = None
+    sub_category1: Optional[str] = None
+    sub_category2: Optional[str] = None
+    era: Optional[str] = None
+    location: Optional[str] = None
 
     class Config:
         from_attributes = True

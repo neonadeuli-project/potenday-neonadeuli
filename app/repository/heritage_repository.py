@@ -29,8 +29,9 @@ class HeritageRepository:
     # 문화재 ID에 해당하는 문화재 조회
     async def get_heritage_by_id(self, heritage_id: int) -> Heritage:
         result = await self.db.execute(select(Heritage)
+                                       .options(joinedload(Heritage.heritage_types))
                                        .where(Heritage.id == heritage_id))
-        return result.scalar_one_or_none()
+        return result.unique().scalar_one_or_none()
     
     # 건축물 ID로 문화재 이름 조회
     async def get_heritage_building_name_by_id(self, building_id: int) -> str:
