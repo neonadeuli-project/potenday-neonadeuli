@@ -1,6 +1,6 @@
 import re
 import logging
-from typing import Dict
+from typing import Dict, Tuple
 
 from app.error.chat_exception import QuizParsingException
 
@@ -88,3 +88,15 @@ def clean_location(location: str) -> str:
     cleaned = re.sub(r'\(.*?\)', '', cleaned).strip()
 
     return cleaned
+
+# 문화재 사용자 거리 파싱
+def parse_heritage_dist_range(distance_range: str) -> Tuple[float, float]:
+    ranges = {
+        "0-0.5": (0, 0.5),
+        "0.5-1": (0.5, 1),
+        "1-10": (1, 10),
+        "10-100": (10, 100),
+        "100-1000": (100, 1000)
+    }
+
+    return ranges.get(distance_range, (0, float('inf')))
