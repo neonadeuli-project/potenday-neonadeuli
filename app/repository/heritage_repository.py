@@ -3,7 +3,8 @@ import logging
 from typing import Any, Dict, List, Optional, Tuple
 
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import update, values, join
+from sqlalchemy import func, and_, Float
+from sqlalchemy import update, values, join, tuple_
 from sqlalchemy.future import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import joinedload, aliased
@@ -15,6 +16,7 @@ from app.models.heritage.heritage_route_building import HeritageRouteBuilding
 from app.models.heritage.heritage import Heritage
 from app.models.quiz import Quiz
 from app.schemas.heritage import HeritageRouteInfo, HeritageBuildingInfo
+from app.utils.common import parse_heritage_dist_range
 
 logger = logging.getLogger(__name__)
 
@@ -109,16 +111,55 @@ class HeritageRepository:
                                                 )
         return verified_building.scalar_one_or_none() is not None
     
-    # 문화재 리스트 조회
-    async def search_heritages(self, limit: int, offset: int, radius: Optional[int] = None) -> List[Heritage]:
+    async def search_heritages(
+        self, 
+        limit: int, 
+        offset: int, 
+        user_latitude: float,
+        user_longitude: float,
+        area_code: Optional[int] = None,
+        heritage_type: Optional[int] = None,
+        distance_range: Optional[str] = None
+) -> List[Tuple[Heritage, float]]:
 
-        query = select(Heritage).options(joinedload(Heritage.heritage_types)).order_by(Heritage.id).limit(limit).offset(offset)
+        query = select(Heritage).options(joinedload(Heritage.heritage_types))
 
-        if radius is not None:
-            query = query.where(Heritage.radius == radius)
+        # 거리 계산 표현식
+        distance_expr = func.round(
+            func.st_distance_sphere(
+                func.point(func.cast(Heritage.longitude, Float), func.cast(Heritage.latitude, Float)),
+                func.point(func.cast(user_longitude, Float), func.cast(user_latitude, Float))
+            ) / 1000, 2
+        ).label('distance')
+
+        query = query.add_columns(distance_expr)
+
+        # 지역 필터링 (radius가 None이 아닐 때만 적용)
+        if area_code is not None:
+            query = query.where(Heritage.area_code == area_code)
+
+        if heritage_type is not None:
+            query = query.where(Heritage.heritage_type_id.in_(heritage_type))
+
+        # 거리 범위 필터링
+        if distance_range:
+            min_dist, max_dist = parse_heritage_dist_range(distance_range)
+            query = query.where(and_(distance_expr >= min_dist, distance_expr < max_dist))
+
+        query = query.order_by(Heritage.id)
+        query = query.limit(limit).offset(offset)
+
+        logger.info(f"문화재 조회 SQL 쿼리가 생성되었습니다.: {query}")
+        logger.info(f"쿼리 파라미터: user_latitude={user_latitude}, user_longitude={user_longitude}, area_code={area_code}, distance_range={distance_range}, limit={limit}, offset={offset}")
         
-        result = await self.db.execute(query)
-        return result.unique().scalars().all()
+        try:
+            result = await self.db.execute(query)
+            data = result.unique().all()
+            logger.info(f"쿼리 개수 결과 : {len(data)}")
+            return data
+        except Exception as e:
+            logger.error(f"쿼리 실행 중 오류 발생: {str(e)}")
+            raise
     
     # 문화재 상세 페이지 조회
     async def get_heritage_by_id(self, heritage_id: int):
