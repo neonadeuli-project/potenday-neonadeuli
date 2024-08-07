@@ -4,7 +4,8 @@ from sqlalchemy import (
     ForeignKey, 
     DateTime, 
     Text,
-    JSON
+    JSON,
+    String
 )
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -17,6 +18,7 @@ class ChatSession(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey('users.id'))
     heritage_id = Column(Integer, ForeignKey('heritages.id'))
+    heritage_name = Column(String(255))
     start_time = Column(DateTime(timezone=True), server_default=func.now())
     end_time = Column(DateTime(timezone=True), nullable=True)
     quiz_count = Column(Integer, default=settings.QUIZ_COUNT)
