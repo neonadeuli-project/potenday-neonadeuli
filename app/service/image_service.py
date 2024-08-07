@@ -15,13 +15,15 @@ from app.error.image_exception import (
     ImageNotFoundException, 
     ImageUploadException, 
     InvalidImageFormatException, 
-    NoImagesFoundException
+    NoImagesFoundException,
+    S3UploadException
 )
 from app.models.heritage.heritage import Heritage
 from app.models.heritage.heritage_building_image import HeritageBuildingImage
 from app.repository.heritage_repository import HeritageRepository
 from app.repository.image_repository import ImageRepository
-from app.schemas.image import HeritageBuildingImageResponse    
+from app.schemas.image import HeritageBuildingImageResponse
+from app.service.s3_service import S3Service    
 
 # 로깅 설정
 logging.basicConfig(level=logging.INFO)
@@ -32,12 +34,7 @@ class ImageService:
         self.db = db
         self.heritage_repository = HeritageRepository(db)
         self.image_repository = ImageRepository(db)
-        self.s3_client = boto3.client(
-            's3',
-            endpoint_url=settings.NCP_ENDPOINT,
-            aws_access_key_id=settings.NCP_ACCESS_KEY,
-            aws_secret_access_key=settings.NCP_SECRET_KEY
-        )
+        self.s3_service = S3Service()
 
     # 이미지 업로드
     async def upload_image(self, file: UploadFile) -> str:
@@ -47,12 +44,9 @@ class ImageService:
         if file_extension not in allowed_extensions:
             raise InvalidImageFormatException(file.filename, allowed_extensions)
         
-        file_name = f"{uuid.uuid4()}.{file_extension}"
         try:
-            contents = await file.read()
-            self.s3_client.put_object(Bucket=settings.BUCKET_NAME, Key=file_name, Body=contents)
-            return f"https://{settings.CDN_DOMAIN}/{file_name}"
-        except ClientError as e:
+            return await self.s3_service.upload_file(file, folder="images")
+        except S3UploadException as e:
             raise ImageUploadException(file.filename, str(e))
         
     # 이미지 삭제
