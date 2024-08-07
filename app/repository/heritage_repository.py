@@ -30,7 +30,7 @@ class HeritageRepository:
     async def get_heritage_by_id(self, heritage_id: int) -> Heritage:
         result = await self.db.execute(select(Heritage)
                                        .where(Heritage.id == heritage_id))
-        return result.scalar_one()
+        return result.scalar_one_or_none()
     
     # 건축물 ID로 문화재 이름 조회
     async def get_heritage_building_name_by_id(self, building_id: int) -> str:
@@ -197,11 +197,3 @@ class HeritageRepository:
         except Exception as e:
             logger.error(f"쿼리 실행 중 오류 발생: {str(e)}")
             raise
-    
-    # 문화재 상세 페이지 조회
-    async def get_heritage_by_id(self, heritage_id: int):
-        result = await self.db.execute(select(Heritage)
-                                       .options(joinedload(Heritage.heritage_types))
-                                       .where(Heritage.id == heritage_id)
-                                    )
-        return result.scalar_one_or_none()

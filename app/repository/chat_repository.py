@@ -63,6 +63,7 @@ class ChatRepository:
             new_session = ChatSession(
                 user_id=user_id, 
                 heritage_id=heritage_id,
+                heritage_name=heritage.name,
                 start_time=datetime.now(),
                 created_at=datetime.now(),
                 updated_at=datetime.now()
