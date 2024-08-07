@@ -23,11 +23,22 @@ async def get_heritage_list(
     limit: int = Query(10, ge=1, le=100),
     user_latitude: float = Query(..., ge=-90, le=90),
     user_longitude: float = Query(..., ge=-180, le=180),
-    radius: Optional[int] = Query(None, ge=11, le=50)
+    area_code: Optional[int] = Query(None, ge=11, le=50),
+    heritage_type: Optional[List[int]] = Query(None, description="문화재 유형"),
+    distance_range: Optional[str] = Query(None, description="거리 범위 유형 (0-0.5, 0.5-1, 1-10, 10-100, 100-1000)")
 ):
     try:
         heritage_service = HeritageService(db)
-        heritages = await heritage_service.get_heritages(page, limit, user_latitude, user_longitude, radius)
+        heritages = await heritage_service.get_heritages(
+            page, 
+            limit, 
+            user_latitude, 
+            user_longitude, 
+            area_code,
+            heritage_type,
+            distance_range
+        )
+
         return heritages
     except DatabaseConnectionError as e:
         logger.error(f"데이터 베이스 연결 에러: {str(e)}")
