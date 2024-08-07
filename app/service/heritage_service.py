@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from haversine import haversine
 
 from app.error.heritage_exceptions import DatabaseConnectionError, HeritageNotFoundException, InvalidCoordinatesException
+from app.models.enums import SortOrder
 from app.repository.heritage_repository import HeritageRepository
 from app.schemas.heritage import HeritageDetailResponse, HeritageListResponse
 from app.utils.common import clean_location
@@ -27,7 +28,9 @@ class HeritageService:
             user_longitude: float, 
             area_code: Optional[int] = None,
             heritage_type: Optional[int] = None,
-            distance_range: Optional[str] = None
+            distance_range: Optional[str] = None,
+            sort_by: str = "id",
+            sort_order: SortOrder = SortOrder.ASC
     ) -> List[HeritageListResponse]:
         try:
             offset = (page - 1) * limit
@@ -38,7 +41,9 @@ class HeritageService:
                 user_longitude,
                 area_code,
                 heritage_type,
-                distance_range
+                distance_range,
+                sort_by,
+                sort_order
             )
         except SQLAlchemyError as e:
             logger.error(f"Database error in get_heritages: {str(e)}")
