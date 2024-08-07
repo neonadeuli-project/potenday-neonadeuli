@@ -4,6 +4,7 @@ from typing import List, Optional
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from haversine import haversine
+
 from app.error.heritage_exceptions import DatabaseConnectionError, HeritageNotFoundException, InvalidCoordinatesException
 from app.repository.heritage_repository import HeritageRepository
 from app.schemas.heritage import HeritageDetailResponse, HeritageListResponse
@@ -18,30 +19,47 @@ class HeritageService:
         self.heritage_repository = HeritageRepository(db)
 
     # 문화재 리스트 조회
-    async def get_heritages(self, page: int, limit: int, user_latitude: float, user_longitude, radius: Optional[int]) -> List[HeritageListResponse]:
+    async def get_heritages(
+            self, 
+            page: int, 
+            limit: int, 
+            user_latitude: float, 
+            user_longitude: float, 
+            area_code: Optional[int] = None,
+            heritage_type: Optional[int] = None,
+            distance_range: Optional[str] = None
+    ) -> List[HeritageListResponse]:
         try:
             offset = (page - 1) * limit
-            heritages = await self.heritage_repository.search_heritages(limit, offset, radius)
+            heritages = await self.heritage_repository.search_heritages(
+                limit, 
+                offset, 
+                user_latitude, 
+                user_longitude,
+                area_code,
+                heritage_type,
+                distance_range
+            )
         except SQLAlchemyError as e:
             logger.error(f"Database error in get_heritages: {str(e)}")
             raise DatabaseConnectionError()
 
         user_location = (user_latitude, user_longitude)
         result = []
-        for heritage in heritages:
-            try:
-                if heritage.latitude is not None and heritage.longitude is not None:
-                    heritage_location = (float(heritage.latitude), float(heritage.longitude))
-                    distance = round(haversine(user_location, heritage_location), 1)
-                else:
-                    raise InvalidCoordinatesException(heritage.id)
-            except (ValueError, TypeError) as e:
-                distance = None
-                logger.error(f"문화재 ID가 {heritage.id}인 문화재의 거리 계산을 실패했습니다. : {str(e)}")
-                distance = None
-            except InvalidCoordinatesException as e:
-                logger.warning(str(e))
-                distance = None
+        for heritage, distance in heritages:
+            # try:
+            #     if heritage.latitude is not None and heritage.longitude is not None:
+            #         heritage_location = (float(heritage.latitude), float(heritage.longitude))
+            #         distance = round(haversine(user_location, heritage_location), 1)
+            #     else:
+            #         raise InvalidCoordinatesException(heritage.id)
+            # except (ValueError, TypeError) as e:
+            #     distance = None
+            #     logger.error(f"문화재 ID가 {heritage.id}인 문화재의 거리 계산을 실패했습니다. : {str(e)}")
+            #     distance = None
+            # except InvalidCoordinatesException as e:
+            #     logger.warning(str(e))
+            #     distance = None
             
             # location 데이터 정제
             cleaned_location = clean_location(heritage.location)
@@ -55,7 +73,7 @@ class HeritageService:
                 location = cleaned_location,
                 heritage_type = heritage.heritage_types.name if heritage.heritage_types else "Unknown",
                 image_url = image_url,
-                distance = distance
+                distance = round(distance, 1) if distance is not None else None
             ))
 
         return result
