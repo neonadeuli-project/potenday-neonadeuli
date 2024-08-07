@@ -236,11 +236,11 @@ class ClovaService:
 
             completion_request_data = {
                 "messages": request_data,
-                "maxTokens": 300,
+                "maxTokens": 256,
                 "temperature": 0.5,
                 "topK": 0,
                 "topP": 0.8,
-                "repeatPenalty": 1.2,
+                "repeatPenalty": 5,
                 "stopBefore": [],
                 "includeAiFilters": True,
                 "seed": 0
@@ -284,10 +284,10 @@ class ClovaService:
                     {"role":"user", "content": content}
                 ],
                 "maxTokens": 400,
-                "temperature": 0.5,
+                "temperature": 0.7,
                 "topK": 0,
                 "topP": 0.8,
-                "repeatPenalty": 1.2,
+                "repeatPenalty": 8,
                 "stopBefore": [],
                 "includeAiFilters": True,
                 "seed": 0
