@@ -6,9 +6,12 @@ import http.client
 from typing import Dict, List
 from http import HTTPStatus
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.core.config import settings
 from app.error.chat_exception import APICallException, ChatServiceException
 from app.models.enums import ChatbotType
+from app.repository.heritage_repository import HeritageRepository
 from app.utils.prompts import *
 
 logger = logging.getLogger(__name__)
@@ -107,18 +110,28 @@ class ClovaService:
     input: session_id, content(sliding_window + user_input)
     output: clova x output
     '''
-    def __init__(self):
+    def __init__(self, db: AsyncSession):
         self.api_key = settings.CLOVA_API_KEY
         self.api_key_primary_val = settings.CLOVA_API_KEY_PRIMARY_VAL
         self.api_sliding_url = settings.CLOVA_SLIDING_API_HOST
         self.api_completion_url = settings.CLOVA_COMPLETION_API_HOST
+        self.heritage_repository = HeritageRepository(db)
 
     async def get_chatting(self, session_id: int, sliding_window: list) -> str:
         try:
             logger.info(f"get_chatting input - session_id: {session_id}, sliding_window: {sliding_window}")
 
+            # 세션 ID로 heritage id 조회
+            heritage_id = await self.heritage_repository.get_heritage_id_by_session(session_id)
+
+            # heritage id로 문화재 이름 조회
+            heritage_name = await self.heritage_repository.get_heritage_name_by_id(heritage_id)
+
+            # 새로운 System 프롬프트 전달
+            dynamic_prompt = generate_dynamic_prompt(heritage_name)
+
             # 새로운 System 프롬프트로 sliding window 업데이트
-            updated_sliding_window = self.update_sliding_window_system(sliding_window, SYSTEM_PROMPT_CHATBOT)
+            updated_sliding_window = self.update_sliding_window_system(sliding_window, dynamic_prompt)
 
             if sliding_window is None:
                 sliding_window = []

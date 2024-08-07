@@ -41,7 +41,7 @@ class ChatService:
         self.chat_repository = ChatRepository(db)
         self.heritage_repository = HeritageRepository(db)
         self.validation_service = ValidationService(db)
-        self.clova_service = ClovaService()
+        self.clova_service = ClovaService(db)
         self.current_sliding_window = None
     
     # 채팅 세션 생성하기
