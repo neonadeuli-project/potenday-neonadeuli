@@ -3,12 +3,12 @@ import logging
 from typing import Any, Dict, List, Optional, Tuple
 
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import func, and_, Float
-from sqlalchemy import update, values, join, tuple_
+from sqlalchemy import func, and_, Float, update, values, join, tuple_, asc, desc
 from sqlalchemy.future import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import joinedload, aliased
 
+from app.models.enums import SortOrder
 from app.models.heritage.heritage_building_image import HeritageBuildingImage
 from app.models.heritage.heritage_building import HeritageBuilding
 from app.models.heritage.heritage_route import HeritageRoute
@@ -119,7 +119,9 @@ class HeritageRepository:
         user_longitude: float,
         area_code: Optional[int] = None,
         heritage_type: Optional[int] = None,
-        distance_range: Optional[str] = None
+        distance_range: Optional[str] = None,
+        sort_by: str = "id",
+        sort_order: SortOrder = SortOrder.ASC
 ) -> List[Tuple[Heritage, float]]:
 
         query = select(Heritage).options(joinedload(Heritage.heritage_types))
@@ -134,19 +136,29 @@ class HeritageRepository:
 
         query = query.add_columns(distance_expr)
 
-        # 지역 필터링 (radius가 None이 아닐 때만 적용)
+        # 지역 필터링 (area_code None이 아닐 때만 적용)
         if area_code is not None:
             query = query.where(Heritage.area_code == area_code)
 
         if heritage_type is not None:
             query = query.where(Heritage.heritage_type_id.in_(heritage_type))
 
+        # 정렬 로직 추가
+        if sort_by == "distance":
+            order_column = distance_expr
+        else:
+            order_column = Heritage.id
+        
+        if sort_order == SortOrder.ASC:
+            query = query.order_by(asc(order_column))
+        else:
+            query = query.order_by(desc(order_column))
+
         # 거리 범위 필터링
         if distance_range:
             min_dist, max_dist = parse_heritage_dist_range(distance_range)
             query = query.where(and_(distance_expr >= min_dist, distance_expr < max_dist))
 
-        query = query.order_by(Heritage.id)
         query = query.limit(limit).offset(offset)
 
         logger.info(f"문화재 조회 SQL 쿼리가 생성되었습니다.: {query}")
