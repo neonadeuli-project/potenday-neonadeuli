@@ -55,7 +55,12 @@ class Settings(BaseSettings):
     CLOVA_COMPLETION_API_HOST : str
     MAX_TOKEN : int
 
-    # 네이버 클라우드
+    # 네이버 클라우드 클로바 보이스 API
+    CLOVA_VOICE_URL : str
+    CLOVA_VOICE_CLIENT_ID : str
+    CLOVA_VOICE_CLIENT_SECRET : str
+
+    # 네이버 클라우드 서버 및 이미지
     NCP_ACCESS_KEY : str
     NCP_SECRET_KEY : str
     NCP_REGION : str
