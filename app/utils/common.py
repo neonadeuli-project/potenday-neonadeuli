@@ -19,8 +19,8 @@ def parse_quiz_content(quiz_content: str) -> Dict[str, any]:
         # 선택지 추출
         options = []
         for line in lines[1:]:
-            # 예시) "1. 근정전" -> "근정전" 추출
-            match = re.match(r'^\d+\.\s*(.+)$', line.strip())
+            # 예시) "1번. 근정전" -> "근정전" 추출
+            match = re.match(r'^\d+번\.\s*(.+)$', line.strip())
             if match:
                 options.append(match.group(1))
             if len(options) == 5:
@@ -32,22 +32,34 @@ def parse_quiz_content(quiz_content: str) -> Dict[str, any]:
             raise ValueError("최소 2개 이상의 선택지가 필요합니다.")
         
         # 정답 추출
-        answer_match = re.search(r'정답:\s*(\d+)번', quiz_content)
+        answer_match = re.search(r'정답\s*:?\s*(\d+)(번)?', quiz_content, re.IGNORECASE)
         if answer_match:
             answer = answer_match.group(1)
             if int(answer) > len(options):
                 raise QuizParsingException(f"정답 번호({answer})가 선택지 개수({len(options)})를 초과합니다.")
             logger.info(f"추출된 정답 값 : {answer}")
         else:
-            raise QuizParsingException("정답 값을 추출할 수 없습니다.")
+            # 정답을 찾지 못한 경우, '정답'이라는 단어 뒤의 첫 번째 숫자를 찾습니다.
+            fallback_answer_match = re.search(r'정답.*?(\d+)', quiz_content, re.IGNORECASE | re.DOTALL)
+            if fallback_answer_match:
+                answer = fallback_answer_match.group(1)
+                logger.info(f"대체 방법으로 추출된 정답 값 : {answer}")
+            else:
+                raise QuizParsingException("정답 값을 추출할 수 없습니다.")
 
         # 설명 추출
-        explanation_match = re.search(r'설명:\s*(.+)$', quiz_content, re.DOTALL)
+        explanation_match = re.search(r'설명\s*:?\s*(.+)$', quiz_content, re.IGNORECASE | re.DOTALL)
         if explanation_match:
             explanation = explanation_match.group(1).strip()
             logger.info(f"추출된 설명: {explanation}")
         else:
-            raise QuizParsingException("설명을 찾을 수 없습니다.")
+            # '설명:' 이후의 모든 텍스트를 설명으로 간주
+            explanation_parts = quiz_content.split('설명', 1)
+            if len(explanation_parts) > 1:
+                explanation = explanation_parts[1].strip()
+                logger.info(f"대체 방법으로 추출된 설명: {explanation}")
+            else:
+                raise QuizParsingException("설명을 찾을 수 없습니다.")
 
         parsed_quiz = {
             'question': question,
