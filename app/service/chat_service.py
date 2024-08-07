@@ -1,6 +1,12 @@
 import asyncio
+import io
 import json
 import logging
+from fastapi import UploadFile
+import requests
+import time
+import os
+import aiofiles
 
 import re
 from typing import Any, Callable, Dict, List
@@ -17,6 +23,7 @@ from app.error.chat_exception import SessionNotFoundException
 from app.models.enums import ChatbotType, RoleType
 from app.schemas.heritage import BuildingInfoButtonResponse, BuildingQuizButtonResponse, RecommendedQuestionResponse
 from app.service.clova_service import ClovaService
+from app.service.s3_service import S3Service
 from app.service.validation_service import ValidationService
 from app.repository.heritage_repository import HeritageRepository
 from app.repository.chat_repository import ChatRepository
@@ -33,6 +40,8 @@ from app.utils.common import parse_quiz_content
 
 logger = logging.getLogger(__name__)
 
+BASE_URL = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
 class ChatService:
 
     def __init__(self, db: AsyncSession):
@@ -42,6 +51,7 @@ class ChatService:
         self.heritage_repository = HeritageRepository(db)
         self.validation_service = ValidationService(db)
         self.clova_service = ClovaService(db)
+        self.s3_service = S3Service()
         self.current_sliding_window = None
     
     # 채팅 세션 생성하기
@@ -169,6 +179,44 @@ class ChatService:
         except Exception as e:
             logger.error(f"대화 내용 저장 중 오류 발생: {str(e)}", exc_info=True)
             raise ChatServiceException("대화 내용 저장 실패")
+    
+    # 텍스트 음성 전환
+    async def text_to_speech(self, text: str, session_id: int) -> str:
+        try:
+            headers = {
+                "X-NCP-APIGW-API-KEY-ID" : settings.CLOVA_VOICE_CLIENT_ID,
+                "X-NCP-APIGW-API-KEY" : settings.CLOVA_VOICE_CLIENT_SECRET,
+                "Content-Type" : "application/x-www-form-urlencoded"
+            }
+
+            data = {
+                "speaker": "nara",
+                "volume": "0",
+                "speed": "0",
+                "pitch": "0",
+                "text": text,
+                "format": "mp3"
+            }
+
+            response = requests.post(settings.CLOVA_VOICE_URL, headers=headers, data=data)
+            if response.status_code == 200:
+                # S3에 음성 파일 저장
+                file_name = f"audio_{session_id}_{int(time.time())}.mp3"
+                audio_file = UploadFile(filename=file_name, file=io.BytesIO(response.content))
+
+                audio_url = await self.s3_service.upload_file(audio_file, folder="audio")
+                if audio_url:
+                    return audio_url
+                else:
+                    logger.error("음성 파일 S3 업로드 실패")
+                    return None
+            else:
+                logger.error("클로바 보이스 API 오류: {response.status_code}")
+                return None
+        except Exception as e:
+            logger.error(f"음성 변환 중 오류 발생 : {str(e)}")
+            return None
+
 
     # 채팅 메시지 제공
     async def update_chat_conversation(self, session_id: int, content: str) -> ChatMessageResponse:
@@ -183,6 +231,9 @@ class ChatService:
             if bot_message is None:
                 raise ChatServiceException("대화 업데이트 이후 챗봇 메시지를 찾을 수 없습니다.")
             
+            # 음성 변환
+            audio_url = await self.text_to_speech(bot_response, session_id)
+            
             # 비동기적으로 추천 질문 생성 및 저장
             asyncio.create_task(self.generate_and_save_recommended_questions(session_id, bot_response))
 
@@ -191,7 +242,8 @@ class ChatService:
                 session_id=session_id,
                 role=RoleType.ASSISTANT.value,
                 content=bot_response,
-                timestamp=bot_message.timestamp
+                timestamp=bot_message.timestamp,
+                audio_url=audio_url
             )
         except Exception as e:
             logger.error(f"채팅 대화 업데이트 중 오류 발생: {str(e)}", exc_info=True)
