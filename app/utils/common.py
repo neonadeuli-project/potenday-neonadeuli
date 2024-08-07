@@ -83,7 +83,7 @@ def parse_quiz_content(quiz_content: str) -> Dict[str, any]:
         logger.error(f"퀴즈 내용 파싱 중 오류 발생: {str(e)}")
         raise ValueError("퀴즈 내용을 파싱할 수 없습니다.") from e
     
-# 문화재 location 데이터 파싱
+# 문화재 조회 location 파싱
 def parse_location_for_detail(location: str) -> str:
     if not location:
         return ""
@@ -101,6 +101,7 @@ def parse_location_for_detail(location: str) -> str:
 
     return cleaned
 
+# 문화재 리스트 location 파싱
 def parse_location_for_list(location: str) -> str:
     if not location:
         return ""
@@ -119,14 +120,19 @@ def parse_location_for_list(location: str) -> str:
     # 쉼표 이후 내용 제거
     cleaned = cleaned.split(',')[0].strip()
 
-    # 특정 키워드 이후 내용 제거
-    keywords = ['번지', '길', '로', '동', '읍', '면']
-    for keyword in keywords:
-        match = re.search(f'{keyword}\\s', cleaned)
-        if match:
-            end_index = match.end()
-            cleaned = cleaned[:end_index].strip()
-            break
+    # 도로명 주소 처리
+    road_address = re.match(r'^(.+[시군구])\s+(.+[로길])', cleaned)
+    if road_address:
+        cleaned = road_address.group(0)
+    else:
+        # 특정 키워드 이후 내용 제거
+        keywords = ['가', '동', '읍', '면']
+        for keyword in keywords:
+            match = re.search(f'{keyword}\\s', cleaned)
+            if match:
+                end_index = match.end()
+                cleaned = cleaned[:end_index].strip()
+                break
     
     # 숫자로 끝나는 경우, 숫자 그 앞 공백 제거
     cleaned = re.sub(r'\s+\d+$', '', cleaned)
