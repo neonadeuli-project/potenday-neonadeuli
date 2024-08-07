@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.error.chat_exception import APICallException, ChatServiceException
 from app.models.enums import ChatbotType
+from app.repository.chat_repository import ChatRepository
 from app.repository.heritage_repository import HeritageRepository
 from app.utils.prompts import *
 
@@ -116,19 +117,24 @@ class ClovaService:
         self.api_sliding_url = settings.CLOVA_SLIDING_API_HOST
         self.api_completion_url = settings.CLOVA_COMPLETION_API_HOST
         self.heritage_repository = HeritageRepository(db)
+        self.chat_repository = ChatRepository(db)
 
     async def get_chatting(self, session_id: int, sliding_window: list) -> str:
         try:
             logger.info(f"get_chatting input - session_id: {session_id}, sliding_window: {sliding_window}")
 
             # 세션 ID로 heritage id 조회
-            heritage_id = await self.heritage_repository.get_heritage_id_by_session(session_id)
+            # heritage_id = await self.heritage_repository.get_heritage_id_by_session(session_id)
 
             # heritage id로 문화재 이름 조회
-            heritage_name = await self.heritage_repository.get_heritage_name_by_id(heritage_id)
+            # heritage_name = await self.heritage_repository.get_heritage_name_by_id(heritage_id)
+
+            session = await self.chat_repository.get_chat_session(session_id)
+            if not session:
+                raise ValueError(f"{session_id}번 ID는 유효한 세션 ID가 아닙니다.")
 
             # 새로운 System 프롬프트 전달
-            dynamic_prompt = generate_dynamic_prompt(heritage_name)
+            dynamic_prompt = generate_dynamic_prompt(session.heritage_name)
 
             # 새로운 System 프롬프트로 sliding window 업데이트
             updated_sliding_window = self.update_sliding_window_system(sliding_window, dynamic_prompt)
