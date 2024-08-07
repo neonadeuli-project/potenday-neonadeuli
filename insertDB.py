@@ -10,7 +10,7 @@ connection = pymysql.connect(
 )
 
 try:
-    csv_file_path = './heritage_table.csv'
+    csv_file_path = './heritage_table_v2.csv'
     data = pd.read_csv(csv_file_path)
 
     cursor = connection.cursor()
