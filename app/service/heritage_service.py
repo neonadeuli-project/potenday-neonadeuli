@@ -126,5 +126,5 @@ class HeritageService:
             sub_category1 = heritage.sub_category1,
             sub_category2 = heritage.sub_category2,
             era = heritage.era,
-            location = heritage.location
+            location = clean_location(heritage.location)
         )
