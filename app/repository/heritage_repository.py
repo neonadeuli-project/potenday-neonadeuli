@@ -187,8 +187,10 @@ class HeritageRepository:
 
         # 전체 개수 계산
         if count_total:
-            count_query = query.with_only_columns(func.count()).order_by(None)
-            total_count = await self.db.execute(count_query)
+            # count_query = query.with_only_columns(func.count()).order_by(None)
+            total_count = await self.db.execute(select(func.count())
+                                                .select_from(query.subquery())
+                                            )
             total_count = total_count.scalar()
         else:
             total_count = 0
