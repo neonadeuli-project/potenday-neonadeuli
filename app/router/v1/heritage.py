@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from app.core.deps import get_db
 from app.error.heritage_exceptions import DatabaseConnectionError, HeritageNotFoundException, HeritageServiceException, InvalidCoordinatesException
 from app.models.enums import EraCategory, SortOrder
-from app.schemas.heritage import HeritageDetailResponse, HeritageListResponse
+from app.schemas.heritage import HeritageDetailResponse, HeritageListResponse, PaginatedHeritageResponse
 from app.service.heritage_service import HeritageService
 
 logging.basicConfig(level=logging.INFO)
@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 # 문화재 리스트 조회
-@router.get("/lists", response_model=List[HeritageListResponse])
+@router.get("/lists", response_model=PaginatedHeritageResponse)
 async def get_heritage_list(
     db: AsyncSession = Depends(get_db),
     page: int = Query(1, ge=1),
