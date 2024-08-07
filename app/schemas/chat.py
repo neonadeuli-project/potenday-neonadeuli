@@ -31,6 +31,7 @@ class ChatMessageResponse(BaseModel):
     role: str
     content: str
     timestamp: datetime
+    audio_url: Optional[str] = None
     
 # 채팅 세션 종료 응답 값
 class ChatSessionEndResponse(BaseModel):
