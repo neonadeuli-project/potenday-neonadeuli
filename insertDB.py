@@ -6,7 +6,7 @@ connection = pymysql.connect(
     user='root',
     password='1234',
     database='neonadeuli',
-    port=3308
+    port=3306
 )
 
 try:
@@ -29,7 +29,7 @@ try:
                     sub_category2, 
                     sub_category3, 
                     era, 
-                    radius, 
+                    area_code, 
                     image_url, 
                     created_at,
                     updated_at
@@ -53,7 +53,7 @@ try:
         str(row['sub_category2']),
         str(row['sub_category3']),
         str(row['era']),
-        float(row['radius']),
+        float(row['area_code']),
         str(row['image_url']),
         str(row['created_at']),
         str(row['updated_at'])
