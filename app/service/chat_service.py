@@ -232,10 +232,10 @@ class ChatService:
                 raise ChatServiceException("대화 업데이트 이후 챗봇 메시지를 찾을 수 없습니다.")
             
             # 음성 변환
-            audio_url = await self.text_to_speech(bot_response, session_id)
+            # audio_url = await self.text_to_speech(bot_response, session_id)
             
             # 비동기적으로 추천 질문 생성 및 저장
-            asyncio.create_task(self.generate_and_save_recommended_questions(session_id, bot_response))
+            # asyncio.create_task(self.generate_and_save_recommended_questions(session_id, bot_response))
 
             return ChatMessageResponse (
                 id=bot_message.id,
@@ -243,7 +243,7 @@ class ChatService:
                 role=RoleType.ASSISTANT.value,
                 content=bot_response,
                 timestamp=bot_message.timestamp,
-                audio_url=audio_url
+                # audio_url=audio_url
             )
         except Exception as e:
             logger.error(f"채팅 대화 업데이트 중 오류 발생: {str(e)}", exc_info=True)
