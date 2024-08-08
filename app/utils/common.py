@@ -167,3 +167,15 @@ def process_hashtags(text):
     if current_tag:
         hashtags.append(current_tag.strip())
     return hashtags
+
+def extract_hashtags(text):
+    # 해시태그를 추출하고 공백을 제거합니다.
+    hashtags = re.findall(r'#\s*([^#\n]+)', text)
+    
+    # 각 해시태그의 앞뒤 공백을 제거하고 내부 공백을 제거합니다.
+    cleaned_hashtags = ['#' + ''.join(tag.split()) for tag in hashtags]
+    
+    # 중복 제거 및 정렬
+    unique_hashtags = sorted(set(cleaned_hashtags))
+    
+    return unique_hashtags

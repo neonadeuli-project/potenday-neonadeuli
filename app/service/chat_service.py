@@ -36,7 +36,7 @@ from app.schemas.chat import (
     VisitedBuilding
 )
 
-from app.utils.common import parse_quiz_content, process_hashtags
+from app.utils.common import extract_hashtags, parse_quiz_content, process_hashtags
 
 logger = logging.getLogger(__name__)
 
@@ -411,10 +411,10 @@ class ChatService:
                 keywords = summary['keywords']
                 if isinstance(keywords, str):
                     # 문자열인 경우 해시태그 처리
-                    keywords = process_hashtags(keywords)
+                    keywords = extract_hashtags(keywords)
                 elif isinstance(keywords, list):
                     # 리스트인 경우 각 항목에 대해 해시태그 처리
-                    keywords = [tag for item in keywords for tag in process_hashtags(item)]
+                    keywords = [tag for item in keywords for tag in extract_hashtags(item)]
 
                 return ChatSummaryResponse (
                     chat_date=summary['chat_date'],
