@@ -48,7 +48,7 @@ def parse_quiz_content(quiz_content: str) -> Dict[str, any]:
                 raise QuizParsingException("정답 값을 추출할 수 없습니다.")
 
         # 설명 추출
-        explanation_match = re.search(r'설명\s*:?\s*(.+)$', quiz_content, re.IGNORECASE | re.DOTALL)
+        explanation_match = re.search(r'해설\s*:?\s*(.+)$', quiz_content, re.IGNORECASE | re.DOTALL)
         if explanation_match:
             explanation = explanation_match.group(1).strip()
             logger.info(f"추출된 설명: {explanation}")
