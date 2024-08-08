@@ -150,3 +150,20 @@ def parse_heritage_dist_range(distance_range: str) -> Tuple[float, float]:
     }
 
     return ranges.get(distance_range, (0, float('inf')))
+
+# 해시태그 처리 함수
+def process_hashtags(text):
+    hashtags = []
+    current_tag = ""
+    for word in text.split():
+        if word.startswith('#'):
+            if current_tag:
+                hashtags.append(current_tag.strip())
+            current_tag = word
+        elif current_tag:
+            current_tag += " " + word
+        else:
+            continue
+    if current_tag:
+        hashtags.append(current_tag.strip())
+    return hashtags
