@@ -13,6 +13,7 @@ from app.error.chat_exception import APICallException, ChatServiceException
 from app.models.enums import ChatbotType
 from app.repository.chat_repository import ChatRepository
 from app.repository.heritage_repository import HeritageRepository
+from app.utils.common import process_hashtags
 from app.utils.prompts import *
 
 logger = logging.getLogger(__name__)
@@ -295,8 +296,11 @@ class ClovaService:
 
             response = completion_executor.execute(completion_request_data, stream=False)
             response_text = parse_non_stream_response(response)
+            logger.info(f"Parsed response for session ID {session_id}: {response_text}")
 
-            keywords = response_text.split()[1:]    # '너나들이' 키워드 제외
+            # keywords = response_text.split()[1:]    # '너나들이' 키워드 제외
+            # keywords = [keyword.rstrip() for keyword in response_text.split() if keyword.strip()]
+            keywords = process_hashtags(response_text)
             return {"keywords": keywords}
         
         except APICallException as e:
